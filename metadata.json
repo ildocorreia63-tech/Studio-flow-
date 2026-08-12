@@ -1,0 +1,6 @@
+{
+  "name": "StudioFlow",
+  "description": "Sistema SaaS de gestão inteligente para barbearias, salões de beleza, manicures e studios com agendamento online, WhatsApp, fidelidade, caixa e financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

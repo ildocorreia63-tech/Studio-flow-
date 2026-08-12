@@ -1,0 +1,183 @@
+import React, { useState } from 'react';
+import {
+  LayoutDashboard,
+  Calendar,
+  Users,
+  DollarSign,
+  Menu,
+  X,
+  UserCheck,
+  Scissors,
+  ShoppingCart,
+  PieChart,
+  Award,
+  FileText,
+  Image,
+  ClipboardList,
+  Globe,
+  MessageSquare,
+  Megaphone,
+  CreditCard,
+  Settings,
+  PlusCircle,
+  Building,
+  Sparkles,
+} from 'lucide-react';
+import { ActiveTab, Business, UserProfile, UserRole } from '../types';
+import { isPlatformOwner } from '../utils/auth';
+
+interface MobileNavProps {
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
+  userRole: UserRole;
+  currentUser?: UserProfile | null;
+  currentBusiness?: Business | null;
+  onOpenNewAppointment: () => void;
+}
+
+export const MobileNav: React.FC<MobileNavProps> = ({
+  activeTab,
+  setActiveTab,
+  userRole,
+  currentUser,
+  currentBusiness,
+  onOpenNewAppointment,
+}) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const isSaasOwner = isPlatformOwner(currentUser, currentBusiness);
+
+  const mainTabs: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'caixa', label: 'Caixa', icon: DollarSign },
+  ];
+
+  const allItems: { id: ActiveTab; label: string; icon: React.FC<{ className?: string }>; roles?: UserRole[] }[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'agenda', label: 'Agenda', icon: Calendar },
+    { id: 'clientes', label: 'Clientes', icon: Users },
+    { id: 'profissionais', label: 'Profissionais', icon: UserCheck, roles: ['OWNER', 'ADMIN'] },
+    { id: 'servicos', label: 'Serviços', icon: Scissors, roles: ['OWNER', 'ADMIN'] },
+    { id: 'vendas', label: 'Vendas', icon: ShoppingCart },
+    { id: 'caixa', label: 'Caixa', icon: DollarSign },
+    { id: 'financeiro', label: 'Financeiro', icon: PieChart, roles: ['OWNER', 'ADMIN'] },
+    { id: 'comissoes', label: 'Comissões', icon: DollarSign, roles: ['OWNER', 'ADMIN', 'PROFESSIONAL'] },
+    { id: 'fidelidade', label: 'Fidelidade', icon: Award },
+    { id: 'relatorios', label: 'Relatórios', icon: FileText, roles: ['OWNER', 'ADMIN'] },
+    { id: 'galeria', label: 'Galeria', icon: Image },
+    { id: 'anamnese', label: 'Anamnese', icon: ClipboardList },
+    { id: 'agendamento_online', label: 'Agendamento Online', icon: Globe },
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
+    { id: 'marketing', label: 'Marketing', icon: Megaphone, roles: ['OWNER', 'ADMIN'] },
+    { id: 'assinatura', label: 'Assinatura', icon: CreditCard, roles: ['OWNER'] },
+    { id: 'configuracoes', label: 'Configurações', icon: Settings, roles: ['OWNER', 'ADMIN'] },
+  ];
+
+  const filteredItems = allItems.filter((item) => {
+    if (item.id === 'assinatura' && !isSaasOwner) return false;
+    if (!item.roles) return true;
+    return item.roles.includes(userRole);
+  });
+
+  return (
+    <>
+      {/* Mobile Drawer Overlay */}
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col justify-end lg:hidden">
+          <div className="bg-slate-900 rounded-t-3xl max-h-[85vh] overflow-y-auto p-5 text-white shadow-2xl border-t border-slate-700 space-y-4">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-xl bg-slate-950 text-white flex items-center justify-center overflow-hidden border-2 border-purple-500/70 p-1 shadow-md shrink-0">
+                  {currentBusiness?.logo_url ? (
+                    <img src={currentBusiness.logo_url} alt={currentBusiness.name} className="max-w-full max-h-full object-contain" />
+                  ) : (
+                    <Sparkles className="w-6 h-6 text-purple-300" />
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-extrabold text-base text-white truncate max-w-[190px]">
+                    {currentBusiness?.name || 'StudioFlow'}
+                  </span>
+                  <span className="text-[11px] font-semibold text-purple-400 capitalize">
+                    Menu & Funcionalidades
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMenuOpen(false)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              {filteredItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMenuOpen(false);
+                    }}
+                    className={`flex items-center space-x-2.5 p-3 rounded-xl text-xs font-semibold text-left transition ${
+                      isActive
+                        ? 'bg-purple-700 text-white shadow-md'
+                        : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 text-purple-300 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fixed Bottom Navigation Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-2 py-1.5 flex items-center justify-around lg:hidden shadow-lg">
+        {mainTabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition ${
+                isActive ? 'text-purple-700 font-bold' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              <Icon className={`w-5 h-5 ${isActive ? 'text-purple-700' : 'text-gray-500'}`} />
+              <span className="text-[10px] mt-0.5">{tab.label}</span>
+            </button>
+          );
+        })}
+
+        {/* Center Quick Agendar Button */}
+        <button
+          onClick={onOpenNewAppointment}
+          className="bg-purple-700 text-white p-3 rounded-full shadow-lg shadow-purple-900/40 -mt-5 transition active:scale-95"
+          title="Novo Agendamento"
+        >
+          <PlusCircle className="w-6 h-6" />
+        </button>
+
+        {/* Mais Menu Toggle */}
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition ${
+            isMenuOpen ? 'text-purple-700 font-bold' : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Mais</span>
+        </button>
+      </nav>
+    </>
+  );
+};

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4c1d95" />
+      <stop offset="50%" stop-color="#6d28d9" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <!-- StudioFlow S mark -->
+  <path d="M 330 160 C 330 130, 300 110, 256 110 C 200 110, 170 140, 170 180 C 170 240, 340 230, 340 310 C 340 365, 295 400, 240 400 C 180 400, 145 360, 140 320" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" />
+  <circle cx="350" cy="140" r="18" fill="url(#accent)" />
+  <circle cx="160" cy="370" r="14" fill="url(#accent)" />
+</svg>
