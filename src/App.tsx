@@ -45,15 +45,50 @@ import { Business, UserProfile, NavigationTab, CompanySubscription, UsageStats, 
 import { isPlatformOwner } from './utils/auth';
 
 export function App() {
-  // Check if current URL is public booking page (e.g., /agendar/slug) or public subscription plans page (/planos, /assinar)
-  const path = window.location.pathname;
-  const search = window.location.search;
-  const isPublicBookingRoute = path.startsWith('/agendar');
-  const isPublicPlansRoute = path.startsWith('/planos') || path.startsWith('/assinar') || path.startsWith('/planos-saas') || search.includes('planos=true');
-  const slugFromPath = isPublicBookingRoute ? path.split('/agendar/')[1] || 'studioflow-demo' : '';
+  // Helper to parse current URL route for public booking and public plans pages
+  const parseRoute = () => {
+    if (typeof window === 'undefined') {
+      return { isPlans: false, isBooking: false, bookingSlug: 'studioflow-demo' };
+    }
+    const path = window.location.pathname.toLowerCase();
+    const search = window.location.search.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
 
-  const [isPublicMode, setIsPublicMode] = useState(isPublicBookingRoute);
-  const [isPublicPlansMode, setIsPublicPlansMode] = useState(isPublicPlansRoute);
+    const isPlans =
+      path.startsWith('/planos') ||
+      path.startsWith('/assinar') ||
+      path.startsWith('/planos-saas') ||
+      path.startsWith('/precos') ||
+      path.startsWith('/pricing') ||
+      path.startsWith('/subscription') ||
+      search.includes('planos=true') ||
+      search.includes('page=planos') ||
+      search.includes('tab=planos') ||
+      search.includes('view=planos') ||
+      hash.includes('planos') ||
+      hash.includes('assinar');
+
+    let isBooking = path.startsWith('/agendar') || search.includes('agendar=') || hash.includes('/agendar/');
+    let bookingSlug = 'studioflow-demo';
+
+    if (path.startsWith('/agendar')) {
+      const rawSlug = window.location.pathname.split('/agendar/')[1] || '';
+      bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
+    } else if (search.includes('agendar=')) {
+      const params = new URLSearchParams(window.location.search);
+      bookingSlug = params.get('agendar') || 'studioflow-demo';
+    } else if (hash.includes('/agendar/')) {
+      const rawSlug = window.location.hash.split('/agendar/')[1] || '';
+      bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
+    }
+
+    return { isPlans, isBooking, bookingSlug };
+  };
+
+  const initialRoute = parseRoute();
+  const [isPublicMode, setIsPublicMode] = useState(initialRoute.isBooking);
+  const [isPublicPlansMode, setIsPublicPlansMode] = useState(initialRoute.isPlans);
+  const [slugFromPath, setSlugFromPath] = useState(initialRoute.bookingSlug);
 
   // App Auth & Business state
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
@@ -76,6 +111,23 @@ export function App() {
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
   const [showInstallBanner, setShowInstallBanner] = useState<boolean>(true);
+
+  // Listen for browser Back/Forward and URL changes
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const route = parseRoute();
+      setIsPublicPlansMode(route.isPlans);
+      setIsPublicMode(route.isBooking);
+      setSlugFromPath(route.bookingSlug);
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
 
   useEffect(() => {
     PwaService.registerServiceWorker((reg) => {
@@ -152,19 +204,21 @@ export function App() {
   useEffect(() => {
     if (currentBusiness?.id) {
       loadSubscriptionInfo(currentBusiness.id);
+      PwaService.updateDynamicAppManifest(currentBusiness);
     }
-  }, [activeTab, currentBusiness?.id]);
+  }, [activeTab, currentBusiness]);
 
   const isSaasOwner = isPlatformOwner(currentUser, currentBusiness);
+  const canAccessAssinatura = isSaasOwner || currentUser?.role === 'OWNER' || currentUser?.role === 'ADMIN';
 
   useEffect(() => {
-    if (activeTab === 'assinatura' && currentUser && currentBusiness && !isSaasOwner) {
+    if (activeTab === 'assinatura' && currentUser && currentBusiness && !canAccessAssinatura) {
       setActiveTab('dashboard');
     }
-  }, [activeTab, currentUser, currentBusiness, isSaasOwner]);
+  }, [activeTab, currentUser, currentBusiness, canAccessAssinatura]);
 
   const handleNavigateToAssinatura = () => {
-    if (isSaasOwner) {
+    if (canAccessAssinatura) {
       setActiveTab('assinatura');
     } else {
       window.open('https://wa.me/5511988887777?text=Olá!%20Gostaria%20de%20solicitar%20alteração%20no%20plano%20da%20minha%20barbearia.', '_blank');
@@ -172,16 +226,15 @@ export function App() {
   };
 
   if (isPublicPlansMode) {
+    const isSuperAdmin = isPlatformOwner(currentUser, currentBusiness);
     return (
       <>
         <PublicSubscriptionLanding
           onOpenSignup={(plan?: SaaSPlan) => {
             if (plan) setSelectedPlanForOnboarding(plan);
-            setIsPublicPlansMode(false);
             setIsOnboardingOpen(true);
           }}
           onOpenLogin={() => {
-            setIsPublicPlansMode(false);
             setIsAuthOpen(true);
           }}
           onBackToApp={
@@ -189,10 +242,16 @@ export function App() {
               ? () => {
                   window.history.pushState({}, '', '/');
                   setIsPublicPlansMode(false);
+                  if (isSuperAdmin) {
+                    setActiveTab('assinatura');
+                  } else {
+                    setActiveTab('dashboard');
+                  }
                 }
               : undefined
           }
           isLoggedIn={!!(currentBusiness && currentUser)}
+          isSuperAdmin={isSuperAdmin}
         />
 
         <AuthModal
@@ -201,12 +260,20 @@ export function App() {
             setCurrentUser(user);
             setCurrentBusiness(biz);
             setIsAuthOpen(false);
+            setIsPublicPlansMode(false);
             loadSubscriptionInfo(biz.id);
+            if (isPlatformOwner(user, biz)) {
+              setActiveTab('assinatura');
+            } else {
+              setActiveTab('dashboard');
+            }
+            window.history.pushState({}, '', '/');
           }}
           onOpenSignup={() => {
             setIsAuthOpen(false);
             setIsOnboardingOpen(true);
           }}
+          onClose={() => setIsAuthOpen(false)}
         />
 
         <OnboardingModal
@@ -216,8 +283,12 @@ export function App() {
             setCurrentBusiness(createdBiz);
             setCurrentUser(createdOwner);
             setIsOnboardingOpen(false);
+            setIsPublicPlansMode(false);
             loadSubscriptionInfo(createdBiz.id);
+            setActiveTab('dashboard');
+            window.history.pushState({}, '', '/');
           }}
+          onClose={() => setIsOnboardingOpen(false)}
         />
       </>
     );
@@ -244,6 +315,11 @@ export function App() {
             setCurrentUser(user);
             setCurrentBusiness(biz);
             loadSubscriptionInfo(biz.id);
+            if (isPlatformOwner(user, biz)) {
+              setActiveTab('assinatura');
+            } else {
+              setActiveTab('dashboard');
+            }
           }}
           onOpenSignup={() => setIsOnboardingOpen(true)}
         />
@@ -256,7 +332,9 @@ export function App() {
             setCurrentUser(createdOwner);
             setIsOnboardingOpen(false);
             loadSubscriptionInfo(createdBiz.id);
+            setActiveTab('dashboard');
           }}
+          onClose={() => setIsOnboardingOpen(false)}
         />
       </div>
     );
@@ -306,6 +384,7 @@ export function App() {
           {showInstallBanner && canInstallPwa && (
             <PwaInstallBanner
               canInstall={canInstallPwa}
+              business={currentBusiness}
               onDismiss={() => setShowInstallBanner(false)}
             />
           )}

@@ -62,14 +62,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'agendamento_online', label: 'Agendamento Online', icon: Globe },
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare },
     { id: 'marketing', label: 'Marketing', icon: Megaphone, roles: ['OWNER', 'ADMIN'] },
-    { id: 'assinatura', label: 'Assinatura SaaS', icon: CreditCard, roles: ['OWNER'] },
+    { id: 'assinatura', label: isSaasOwner ? 'Assinatura SaaS' : 'Assinatura', icon: CreditCard, roles: ['OWNER', 'ADMIN'] },
     { id: 'configuracoes', label: 'Configurações', icon: Settings, roles: ['OWNER', 'ADMIN'] },
   ];
 
   const filteredItems = menuItems.filter((item) => {
-    if (item.id === 'assinatura' && !isSaasOwner) return false;
     if (!item.roles) return true;
-    return item.roles.includes(userRole);
+    return item.roles.includes(userRole) || isSaasOwner;
   });
 
   return (

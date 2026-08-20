@@ -1,9 +1,12 @@
-const CACHE_NAME = 'studioflow-v1.0.7';
+const CACHE_NAME = 'studioflow-v1.0.8';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
+  '/manifest.json',
   '/manifest.webmanifest',
+  '/icon-192.png',
+  '/icon-512.png',
   '/icons/icon-192.svg',
   '/icons/icon-512.svg',
 ];
@@ -12,14 +15,17 @@ const STATIC_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
+      // Pre-cache core shell with robust fallback for any missing optional icons
+      return Promise.allSettled(
+        STATIC_ASSETS.map((asset) => cache.add(asset).catch((err) => console.log('Asset cache skip:', asset, err)))
+      );
     }).then(() => {
       return self.skipWaiting();
     })
   );
 });
 
-// Activate Event: purge old caches
+// Activate Event: purge old caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -36,7 +42,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Network first for API/Supabase/Auth, Cache-first for static assets
+// Fetch Event: Network first for navigation with guaranteed index.html fallback
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
@@ -45,30 +51,50 @@ self.addEventListener('fetch', (event) => {
     url.hostname.includes('supabase.co') ||
     url.pathname.startsWith('/rest/') ||
     url.pathname.startsWith('/auth/') ||
+    url.pathname.startsWith('/api/') ||
     event.request.method !== 'GET'
   ) {
     return; // Let browser handle network request natively
   }
 
-  // Network-first strategy for HTML pages / navigation to catch new deployments
-  if (event.request.mode === 'navigate') {
+  // 1. Navigation Requests (PWA launch, deep links like /agendar/xyz, /planos, page refreshes)
+  const isNavigation = event.request.mode === 'navigate' ||
+    (event.request.method === 'GET' && event.request.headers.get('accept')?.includes('text/html'));
+
+  if (isNavigation) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (response.status === 200) {
+          // If network returned a valid 200 response
+          if (response && response.ok && response.status === 200) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+            return response;
           }
-          return response;
+
+          // If server returned 404, 403 or other error, fallback to index.html immediately so SPA client router takes over
+          return caches.match('/index.html')
+            .then((cachedIndex) => cachedIndex || caches.match('/'))
+            .then((fallback) => fallback || fetch('/index.html'))
+            .catch(() => caches.match('/index.html'));
         })
         .catch(() => {
-          return caches.match('/index.html') || caches.match(event.request);
+          // If offline or network error, always serve cached index.html
+          return caches.match('/index.html')
+            .then((cachedIndex) => cachedIndex || caches.match('/'))
+            .then((fallback) => {
+              if (fallback) return fallback;
+              return new Response(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>StudioFlow</title><meta http-equiv="refresh" content="2;url=/"></head><body style="background:#0f172a;color:#fff;font-family:sans-serif;text-align:center;padding:40px;"><h2>Carregando StudioFlow...</h2><p>Restaurando conexão...</p></body></html>',
+                { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+              );
+            });
         })
     );
     return;
   }
 
-  // Cache-first strategy for static assets (JS, CSS, SVGs, Fonts)
+  // 2. Cache-first strategy for static assets (JS, CSS, SVGs, Fonts, Images)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {

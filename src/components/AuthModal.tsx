@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle, X } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, UserProfile } from '../types';
@@ -8,9 +8,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onLoginSuccess: (user: UserProfile, business: Business) => void;
   onOpenSignup: () => void;
+  onClose?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, onOpenSignup }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, onOpenSignup, onClose }) => {
   const [email, setEmail] = useState('admin@studioflow.app');
   const [password, setPassword] = useState('123456');
   const [errorMsg, setErrorMsg] = useState('');
@@ -95,19 +96,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
         }
       }
 
-      // Default fallback if admin@studioflow.app
-      if (!targetBiz && email.toLowerCase() === 'admin@studioflow.app') {
+      // Default fallback if master admin email
+      const isMasterEmail =
+        email.toLowerCase().trim() === 'admin@studioflow.app' ||
+        email.toLowerCase().trim() === '1980burguer@gmail.com';
+
+      if (!targetBiz && isMasterEmail) {
         targetBiz = businesses[0];
-        if (targetBiz) {
-          matchedProfile = DB.getProfiles(targetBiz.id)[0] || ({
-            id: 'usr-admin',
-            business_id: targetBiz.id,
-            name: targetBiz.owner_name,
-            email: 'admin@studioflow.app',
-            role: 'OWNER',
-            created_at: new Date().toISOString(),
-          } as UserProfile);
-        }
+      }
+
+      if (isMasterEmail && matchedProfile) {
+        matchedProfile = { ...matchedProfile, role: 'SUPER_ADMIN' };
+      } else if (!matchedProfile && targetBiz && isMasterEmail) {
+        matchedProfile = {
+          id: 'usr-admin',
+          business_id: targetBiz.id,
+          name: targetBiz.owner_name || 'Admin StudioFlow',
+          email: email.toLowerCase().trim(),
+          role: 'SUPER_ADMIN',
+          created_at: new Date().toISOString(),
+        } as UserProfile;
       }
 
       if (targetBiz && matchedProfile) {
@@ -147,7 +155,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-100 my-8">
         {/* Header */}
-        <div className="bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 p-8 text-white text-center">
+        <div className="bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 p-8 text-white text-center relative">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-900/60 hover:bg-purple-800 text-purple-200 flex items-center justify-center transition border border-purple-700/50"
+              title="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <div className="w-14 h-14 rounded-2xl bg-purple-700/60 mx-auto flex items-center justify-center mb-3 shadow-lg shadow-purple-950">
             <Sparkles className="w-8 h-8 text-purple-200" />
           </div>

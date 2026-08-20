@@ -19,7 +19,7 @@ export class PwaService {
    * Register Service Worker
    */
   static registerServiceWorker(onUpdateFound?: (reg: ServiceWorkerRegistration) => void) {
-    if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'development') {
+    if ('serviceWorker' in navigator) {
       window.addEventListener('load', async () => {
         try {
           const reg = await navigator.serviceWorker.register('/sw.js');
@@ -213,5 +213,93 @@ export class PwaService {
       outputArray[i] = rawData.charCodeAt(i);
     }
     return outputArray;
+  }
+
+  /**
+   * Dynamically update Web App Manifest, App Title, Favicon & Apple Touch Icons
+   * using the current Barbershop Name & Logo URL
+   */
+  static updateDynamicAppManifest(business: { name: string; logo_url?: string; slug?: string }) {
+    if (typeof window === 'undefined' || !business || !business.name) return;
+
+    const appName = business.name.trim();
+    const shortName = appName.length > 12 ? appName.substring(0, 12) : appName;
+    const appIcon = business.logo_url || '/icon-512.png';
+    const slug = business.slug || '';
+
+    // 1. Update Page Title
+    document.title = `${appName} | Agendamento Online & Gestão`;
+
+    // 2. Build Dynamic Web App Manifest Object
+    const manifestObj = {
+      name: appName,
+      short_name: shortName,
+      description: `Aplicativo oficial de Agendamento Online e Gestão para ${appName}`,
+      id: '/',
+      start_url: slug ? `/agendar/${slug}` : '/',
+      scope: '/',
+      display: 'standalone',
+      orientation: 'portrait',
+      background_color: '#0f172a',
+      theme_color: '#581c87',
+      prefer_related_applications: false,
+      icons: [
+        {
+          src: appIcon,
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any maskable',
+        },
+        {
+          src: appIcon,
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable',
+        },
+      ],
+    };
+
+    try {
+      const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/manifest+json' });
+      const manifestBlobUrl = URL.createObjectURL(manifestBlob);
+
+      // 3. Update or Insert <link rel="manifest">
+      let manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+      if (!manifestLink) {
+        manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        document.head.appendChild(manifestLink);
+      }
+      manifestLink.href = manifestBlobUrl;
+    } catch (e) {
+      console.log('Manifest blob update fallback:', e);
+    }
+
+    // 4. Update Apple Touch Icon (Critical for iOS Safari homescreen logo)
+    let appleIconLink = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+    if (!appleIconLink) {
+      appleIconLink = document.createElement('link');
+      appleIconLink.rel = 'apple-touch-icon';
+      document.head.appendChild(appleIconLink);
+    }
+    appleIconLink.href = appIcon;
+
+    // 5. Update Favicon
+    let faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+    if (!faviconLink) {
+      faviconLink = document.createElement('link');
+      faviconLink.rel = 'icon';
+      document.head.appendChild(faviconLink);
+    }
+    faviconLink.href = appIcon;
+
+    // 6. Update Apple Mobile Web App Title
+    let appleTitleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]') as HTMLMetaElement;
+    if (!appleTitleMeta) {
+      appleTitleMeta = document.createElement('meta');
+      appleTitleMeta.name = 'apple-mobile-web-app-title';
+      document.head.appendChild(appleTitleMeta);
+    }
+    appleTitleMeta.content = shortName;
   }
 }

@@ -15,6 +15,7 @@ import {
 import { DB, addMinutesToTime } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { WhatsAppService } from '../utils/whatsapp';
+import { PwaService } from '../services/pwaService';
 import { Business, Service, Professional } from '../types';
 
 interface PublicBookingProps {
@@ -49,6 +50,7 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
       setBusiness(biz);
       setServices(DB.getServices(biz.id).filter((s) => s.active));
       setProfessionals(DB.getProfessionals(biz.id).filter((p) => p.status === 'active'));
+      PwaService.updateDynamicAppManifest(biz);
     }
   }, [businessSlug]);
 

@@ -30,11 +30,20 @@ import {
   Globe,
   QrCode as QrCodeIcon,
   Download,
+  Trash2,
+  AlertTriangle,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+  CheckCircle,
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import confetti from 'canvas-confetti';
 import { Business, SaaSPlan, SubscriptionStatus, CompanySubscription, UsageStats, UserProfile } from '../../types';
 import { SubscriptionService, PLANS } from '../../services/subscription';
+import { StripeService, StripeConfigResponse } from '../../services/stripe';
 import { isPlatformOwner } from '../../utils/auth';
+import { getPublicPlansUrl } from '../../utils/url';
 
 interface AssinaturaViewProps {
   business: Business;
@@ -57,8 +66,11 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
   onSelectBusiness,
   onOpenPublicPlans,
 }) => {
-  const isOwner = isPlatformOwner(currentUser, business);
-  const [viewMode, setViewMode] = useState<'my_plan' | 'saas_admin'>('saas_admin');
+  const isSaasAdmin = isPlatformOwner(currentUser, business);
+  const canManageSubscription = currentUser?.role === 'OWNER' || currentUser?.role === 'ADMIN' || isSaasAdmin;
+  const [viewMode, setViewMode] = useState<'my_plan' | 'saas_admin'>(() => {
+    return isSaasAdmin ? 'saas_admin' : 'my_plan';
+  });
 
   // Single business state
   const [subscription, setSubscription] = useState<CompanySubscription | null>(null);
@@ -87,16 +99,160 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
   const [editPlan, setEditPlan] = useState<SaaSPlan>('professional');
   const [editStatus, setEditStatus] = useState<SubscriptionStatus>('ACTIVE');
 
+  // Delete Business Modal state
+  const [deletingItem, setDeletingItem] = useState<BusinessSubItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Status Quick Update state
+  const [updatingStatusBizId, setUpdatingStatusBizId] = useState<string | null>(null);
+
   // Public Plans Link & QR State
   const [plansPageCopied, setPlansPageCopied] = useState(false);
   const [plansPageQrUrl, setPlansPageQrUrl] = useState('');
-  const publicPlansUrl = `${window.location.origin}/planos`;
+  const [publicPlansUrl, setPublicPlansUrl] = useState('');
+
+  // Stripe Integration States
+  const [stripeConfig, setStripeConfig] = useState<StripeConfigResponse | null>(null);
+  const [isStripeCheckingOut, setIsStripeCheckingOut] = useState(false);
+  const [stripeCheckingOutPlanId, setStripeCheckingOutPlanId] = useState<string | null>(null);
+  const [stripeLinkModal, setStripeLinkModal] = useState<{
+    isOpen: boolean;
+    url: string;
+    bizName: string;
+    planName: string;
+    price: string;
+  } | null>(null);
+  const [isGeneratingStripeLink, setIsGeneratingStripeLink] = useState(false);
+  const [stripeLinkCopied, setStripeLinkCopied] = useState(false);
 
   useEffect(() => {
-    QRCode.toDataURL(publicPlansUrl, { width: 300, margin: 2 })
-      .then((url) => setPlansPageQrUrl(url))
+    const url = getPublicPlansUrl();
+    setPublicPlansUrl(url);
+    QRCode.toDataURL(url, { width: 300, margin: 2 })
+      .then((qrUrl) => setPlansPageQrUrl(qrUrl))
       .catch((err) => console.error('Erro ao gerar QR Code dos planos:', err));
-  }, [publicPlansUrl]);
+
+    // Load Stripe Configuration
+    StripeService.getConfigAsync().then((cfg) => {
+      setStripeConfig(cfg);
+    });
+
+    // Check if returned from Stripe Checkout
+    const searchParams = new URLSearchParams(window.location.search);
+    const stripeSessionId = searchParams.get('stripe_session_id') || searchParams.get('session_id');
+    const isStripeSuccess = searchParams.get('stripe_success') === 'true' || searchParams.get('success') === 'true';
+    const returnPlanId = (searchParams.get('plan_id') as SaaSPlan) || 'professional';
+    const returnBizId = searchParams.get('business_id') || business.id;
+
+    if (stripeSessionId && isStripeSuccess) {
+      handleStripeSuccessReturn(stripeSessionId, returnBizId, returnPlanId);
+    }
+  }, []);
+
+  const handleStripeSuccessReturn = async (
+    sessionId: string,
+    bizId: string,
+    planId: SaaSPlan
+  ) => {
+    try {
+      setLoading(true);
+      const verifyRes = await StripeService.verifySessionAsync(sessionId, bizId, planId);
+
+      if (verifyRes.success) {
+        // Activate subscription automatically
+        await SubscriptionService.adminUpdateSubscriptionAsync(bizId, planId, 'ACTIVE');
+        await SubscriptionService.adminUpdateSubscriptionStatusAsync(bizId, 'ACTIVE');
+
+        // Confetti celebration
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+
+        showToast(
+          `🎉 Pagamento confirmado pelo Stripe! O plano ${PLANS[planId]?.name || 'Profissional'} foi ativado com sucesso!`
+        );
+
+        if (onRefreshBusiness) {
+          onRefreshBusiness();
+        }
+      } else {
+        alert('Não foi possível confirmar o pagamento da sessão Stripe. Verifique com o suporte.');
+      }
+    } catch (err) {
+      console.error('Error handling Stripe success return:', err);
+    } finally {
+      // Clean query params from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+      loadData();
+    }
+  };
+
+  const handleStripeCheckout = async (planId: SaaSPlan, targetBusiness = business) => {
+    try {
+      setIsStripeCheckingOut(true);
+      setStripeCheckingOutPlanId(planId);
+
+      const sessionRes = await StripeService.createCheckoutSessionAsync({
+        planId,
+        businessId: targetBusiness.id,
+        businessName: targetBusiness.name,
+        customerEmail: targetBusiness.email,
+        successUrl: `${window.location.origin}/assinatura?stripe_session_id={CHECKOUT_SESSION_ID}&plan_id=${planId}&business_id=${targetBusiness.id}&stripe_success=true`,
+        cancelUrl: `${window.location.origin}/assinatura?stripe_cancelled=true`,
+      });
+
+      if (sessionRes.url) {
+        // Redirect directly to Stripe Checkout
+        window.location.href = sessionRes.url;
+      } else if (sessionRes.mockSession?.url) {
+        // In dev / unconfigured mode: redirect or process directly
+        window.location.href = sessionRes.mockSession.url;
+      } else {
+        alert(sessionRes.message || 'Erro ao iniciar sessão de pagamento no Stripe.');
+      }
+    } catch (err: any) {
+      console.error('Error launching Stripe checkout:', err);
+      alert(err.message || 'Erro ao conectar ao Stripe Checkout.');
+    } finally {
+      setIsStripeCheckingOut(false);
+      setStripeCheckingOutPlanId(null);
+    }
+  };
+
+  const handleGenerateStripeLinkForBusiness = async (bizItem: BusinessSubItem, planId: SaaSPlan) => {
+    try {
+      setIsGeneratingStripeLink(true);
+      const planDef = PLANS[planId] || PLANS.professional;
+      const sessionRes = await StripeService.createCheckoutSessionAsync({
+        planId,
+        businessId: bizItem.business.id,
+        businessName: bizItem.business.name,
+        customerEmail: bizItem.business.email,
+        successUrl: `${window.location.origin}/assinatura?stripe_session_id={CHECKOUT_SESSION_ID}&plan_id=${planId}&business_id=${bizItem.business.id}&stripe_success=true`,
+        cancelUrl: `${window.location.origin}/assinatura?stripe_cancelled=true`,
+      });
+
+      const finalUrl = sessionRes.url || sessionRes.mockSession?.url || '';
+      if (finalUrl) {
+        setStripeLinkModal({
+          isOpen: true,
+          url: finalUrl,
+          bizName: bizItem.business.name,
+          planName: planDef.name,
+          price: planDef.priceMonthly,
+        });
+      } else {
+        alert(sessionRes.message || 'Não foi possível gerar o link de cobrança do Stripe.');
+      }
+    } catch (err: any) {
+      console.error('Error generating Stripe link:', err);
+      alert(err.message || 'Erro ao gerar link de pagamento.');
+    } finally {
+      setIsGeneratingStripeLink(false);
+    }
+  };
 
   const handleCopyPlansLink = () => {
     navigator.clipboard.writeText(publicPlansUrl);
@@ -268,6 +424,73 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
     }
   };
 
+  const handleQuickStatusChange = async (
+    bizItem: BusinessSubItem,
+    newStatus: SubscriptionStatus
+  ) => {
+    try {
+      setUpdatingStatusBizId(bizItem.business.id);
+      await SubscriptionService.adminUpdateSubscriptionStatusAsync(
+        bizItem.business.id,
+        newStatus
+      );
+
+      const statusLabels: Record<SubscriptionStatus, string> = {
+        ACTIVE: 'Ativa ✅',
+        SUSPENDED: 'Suspensa ⏸️',
+        TRIAL: 'Trial (Teste) ⏱️',
+        PAST_DUE: 'Pendente de Pagamento ⚠️',
+        EXPIRED: 'Expirada ❌',
+        CANCELLED: 'Cancelada 🚫',
+      };
+
+      showToast(
+        `Status de "${bizItem.business.name}" alterado para ${statusLabels[newStatus] || newStatus} com sucesso!`
+      );
+
+      if (onRefreshBusiness && bizItem.business.id === business.id) {
+        onRefreshBusiness();
+      }
+      await loadData();
+    } catch (err: any) {
+      console.error('Error updating status:', err);
+      alert(err.message || 'Erro ao atualizar status da assinatura.');
+    } finally {
+      setUpdatingStatusBizId(null);
+    }
+  };
+
+  const handleConfirmDeleteBusiness = async () => {
+    if (!deletingItem) return;
+    const targetId = deletingItem.business.id;
+    const targetName = deletingItem.business.name;
+
+    try {
+      setIsDeleting(true);
+      await SubscriptionService.adminDeleteBusinessAsync(targetId);
+
+      showToast(`Barbearia "${targetName}" e todos os seus dados foram excluídos permanentemente.`);
+      setDeletingItem(null);
+
+      const allList = await SubscriptionService.getAllBusinessesSubscriptionsAsync();
+      setAllSubscribed(allList);
+
+      // If the deleted business was the active one, switch to first available
+      if (targetId === business.id && onSelectBusiness && allList.length > 0) {
+        onSelectBusiness(allList[0].business);
+      }
+
+      if (onRefreshBusiness) {
+        onRefreshBusiness();
+      }
+    } catch (err: any) {
+      console.error('Error deleting business:', err);
+      alert(err.message || 'Erro ao excluir barbearia.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const currentPlanId: SaaSPlan = subscription?.plan_id || business.plan || 'professional';
 
   // SaaS Admin metrics
@@ -340,7 +563,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
     }
   };
 
-  if (!isOwner) {
+  if (!canManageSubscription) {
     return (
       <div className="bg-white p-8 rounded-3xl border border-gray-200/80 shadow-xs max-w-2xl mx-auto space-y-6 text-center my-8">
         <div className="w-16 h-16 bg-purple-100 text-purple-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
@@ -349,7 +572,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
         <div className="space-y-2">
           <h2 className="text-xl font-black text-gray-900">Gestão de Assinatura Centralizada</h2>
           <p className="text-xs text-gray-600 leading-relaxed max-w-md mx-auto">
-            A gestão de licenças e planos do StudioFlow é gerenciada de forma centralizada pelo administrador da plataforma. Para solicitar alterações no seu plano ou tirar dúvidas, entre em contato com nosso suporte comercial.
+            A gestão de licenças e planos do StudioFlow é gerenciada de forma centralizada pelo proprietário do estabelecimento. Para solicitar alterações no seu plano ou tirar dúvidas, entre em contato com nosso suporte comercial.
           </p>
         </div>
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs space-y-2 max-w-md mx-auto">
@@ -393,59 +616,63 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
         </div>
       )}
 
-      {/* Top View Selector Tabs */}
-      <div className="flex items-center justify-between bg-white p-2 rounded-2xl border border-gray-200/80 shadow-xs">
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setViewMode('saas_admin')}
-            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-2 transition cursor-pointer ${
-              viewMode === 'saas_admin'
-                ? 'bg-purple-700 text-white shadow-xs'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>Barbearias Assinantes (SaaS Admin)</span>
-            <span className="bg-purple-900/40 text-purple-100 text-[10px] px-2 py-0.5 rounded-full ml-1 font-black">
-              {totalBusinesses}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode('my_plan')}
-            className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-2 transition cursor-pointer ${
-              viewMode === 'my_plan'
-                ? 'bg-purple-700 text-white shadow-xs'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Meu Plano & Limites</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Banner de Isenção do Dono / Admin */}
-      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border border-emerald-500/50 p-4 sm:p-5 rounded-3xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-800/80 flex items-center justify-center border border-emerald-400/50 shrink-0">
-            <Award className="w-6 h-6 text-emerald-200" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-black text-sm text-emerald-300 uppercase tracking-wider">Página do Dono / Administrador</span>
-              <span className="bg-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
-                Isento de Assinatura
+      {/* Top View Selector Tabs (Visible only for SUPER_ADMIN / SaaS Admin) */}
+      {isSaasAdmin && (
+        <div className="flex items-center justify-between bg-white p-2 rounded-2xl border border-gray-200/80 shadow-xs">
+          <div className="flex items-center space-x-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('saas_admin')}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-2 transition cursor-pointer ${
+                viewMode === 'saas_admin'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <Building2 className="w-4 h-4" />
+              <span>Barbearias Assinantes (SaaS Admin)</span>
+              <span className="bg-purple-900/40 text-purple-100 text-[10px] px-2 py-0.5 rounded-full ml-1 font-black">
+                {totalBusinesses}
               </span>
-            </div>
-            <p className="text-xs text-emerald-100/90 mt-0.5">
-              Como Administrador/Dono, você possui acesso vitalício e ilimitado a todas as ferramentas do sistema sem precisar de uma assinatura.
-            </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('my_plan')}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center space-x-2 transition cursor-pointer ${
+                viewMode === 'my_plan'
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Meu Plano & Limites</span>
+            </button>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Banner de Isenção do Dono / Admin (Apenas Super Admin) */}
+      {isSaasAdmin && (
+        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 border border-emerald-500/50 p-4 sm:p-5 rounded-3xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-800/80 flex items-center justify-center border border-emerald-400/50 shrink-0">
+              <Award className="w-6 h-6 text-emerald-200" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className="font-black text-sm text-emerald-300 uppercase tracking-wider">Super Administrador SaaS</span>
+                <span className="bg-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                  Isento de Assinatura
+                </span>
+              </div>
+              <p className="text-xs text-emerald-100/90 mt-0.5">
+                Como Super Administrador do StudioFlow, você possui acesso irrestrito para gerenciar todas as barbearias e licenças da plataforma.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Banner / Card para Divulgação da Página Pública de Assinaturas */}
       <div className="bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 p-6 rounded-3xl border border-purple-800/80 shadow-xl text-white space-y-4">
@@ -521,7 +748,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       </div>
 
       {/* VIEW MODE 1: SAAS ADMIN (ALL REGISTERED BARBER SHOPS & SUBSCRIPTIONS) */}
-      {viewMode === 'saas_admin' && (
+      {viewMode === 'saas_admin' && isSaasAdmin && (
         <div className="space-y-6">
           {/* SaaS Overview Metric Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -585,6 +812,81 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
               <p className="text-[11px] text-gray-500 font-medium pt-1">
                 Faturamento recorrente estim.
               </p>
+            </div>
+          </div>
+
+          {/* Stripe Checkout & Recurring Billing Integration Card */}
+          <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-slate-950 p-6 rounded-3xl border border-purple-800/80 shadow-xl text-white space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center font-black text-xs">
+                    <CreditCard className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base sm:text-lg flex items-center space-x-2">
+                      <span>Processamento Automático Stripe Checkout</span>
+                      {stripeConfig?.configured ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          🟢 Conectado ao Stripe
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          🟡 Modo Teste / Ativo
+                        </span>
+                      )}
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-xs text-purple-200/90 leading-relaxed">
+                  As assinaturas mensais são cobradas via Stripe Checkout com confirmação instantânea e liberação automática de recursos para o estabelecimento.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 shrink-0">
+                <a
+                  href="https://dashboard.stripe.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-purple-200 hover:text-white rounded-xl text-xs font-extrabold border border-purple-700/60 transition flex items-center space-x-2"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Painel Stripe</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Plan prices preview */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-purple-800/40 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Plano Básico</span>
+                  <span className="text-[10px] font-bold text-purple-400">Mensal</span>
+                </div>
+                <div className="text-lg font-black text-white">R$ 39,90<span className="text-xs font-normal text-slate-400">/mês</span></div>
+                <p className="text-[10px] text-slate-400">Até 2 profissionais, 50 clientes</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-purple-950/60 border border-purple-600/60 space-y-1 relative">
+                <span className="absolute -top-2 right-3 px-2 py-0.5 rounded-full bg-amber-400 text-purple-950 text-[9px] font-black uppercase">
+                  Recomendado
+                </span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white">Plano Profissional</span>
+                  <span className="text-[10px] font-bold text-amber-300">Mensal</span>
+                </div>
+                <div className="text-lg font-black text-amber-300">R$ 69,99<span className="text-xs font-normal text-slate-400">/mês</span></div>
+                <p className="text-[10px] text-purple-200">Até 10 profissionais, 1.000 clientes, CRM</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-purple-800/40 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Plano Premium</span>
+                  <span className="text-[10px] font-bold text-purple-400">Mensal</span>
+                </div>
+                <div className="text-lg font-black text-white">R$ 99,90<span className="text-xs font-normal text-slate-400">/mês</span></div>
+                <p className="text-[10px] text-slate-400">Ilimitado + Anamnese + Suporte VIP</p>
+              </div>
             </div>
           </div>
 
@@ -748,10 +1050,74 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                           </div>
                         )}
                       </div>
+
+                      {/* Manual Status Controller (Active / Suspended) */}
+                      <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200/90 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black uppercase text-gray-700 tracking-wider flex items-center space-x-1">
+                            <span>Status da Assinatura</span>
+                          </span>
+                          {updatingStatusBizId === item.business.id && (
+                            <span className="text-[10px] text-purple-700 font-bold flex items-center space-x-1 animate-pulse">
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                              <span>Atualizando...</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {item.subscription.status === 'SUSPENDED' ? (
+                            <button
+                              type="button"
+                              disabled={updatingStatusBizId === item.business.id}
+                              onClick={() => handleQuickStatusChange(item, 'ACTIVE')}
+                              className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Reativar Barbearia (Ativa)</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={updatingStatusBizId === item.business.id}
+                              onClick={() => handleQuickStatusChange(item, 'SUSPENDED')}
+                              className="flex-1 py-2 px-3 bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-200 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <PauseCircle className="w-3.5 h-3.5 text-rose-700" />
+                              <span>Suspender Assinatura</span>
+                            </button>
+                          )}
+
+                          <select
+                            disabled={updatingStatusBizId === item.business.id}
+                            value={item.subscription.status || 'ACTIVE'}
+                            onChange={(e) => handleQuickStatusChange(item, e.target.value as SubscriptionStatus)}
+                            className="py-2 px-2.5 bg-white border border-gray-300 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-hidden shrink-0 cursor-pointer disabled:opacity-50"
+                            aria-label="Mudar status manualmente"
+                          >
+                            <option value="ACTIVE">Ativa</option>
+                            <option value="SUSPENDED">Suspensa</option>
+                            <option value="TRIAL">Trial</option>
+                            <option value="PAST_DUE">Pendente</option>
+                            <option value="EXPIRED">Expirada</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateStripeLinkForBusiness(item, item.subscription.plan_id || 'professional')}
+                        disabled={isGeneratingStripeLink}
+                        className="py-2.5 px-3 bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                        title="Gerar link de pagamento Stripe para esta barbearia"
+                      >
+                        <CreditCard className="w-3.5 h-3.5 text-purple-700" />
+                        <span>Link Stripe</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -762,7 +1128,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                         className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 cursor-pointer"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-gray-600" />
-                        <span>Alterar Plano / Status</span>
+                        <span>Editar Plano / Status</span>
                       </button>
 
                       {onSelectBusiness && (
@@ -779,9 +1145,20 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                           }`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <span>{isCurrentActive ? 'Em Uso' : 'Acessar Painel'}</span>
+                          <span>{isCurrentActive ? 'Em Uso' : 'Acessar'}</span>
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => setDeletingItem(item)}
+                        className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1 cursor-pointer shrink-0"
+                        title={`Excluir barbearia assinante "${item.business.name}"`}
+                        aria-label={`Excluir barbearia assinante "${item.business.name}"`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Excluir</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -805,18 +1182,91 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                   {getStatusBadge(subscription?.status)}
                 </div>
                 <p className="text-xs text-gray-500">
-                  Gerencie seu plano comercial, acompanhe o consumo de recursos e limites do estabelecimento.
+                  Gerencie seu plano comercial, acompanhe o consumo de recursos e o controle de pagamento do estabelecimento.
                 </p>
               </div>
 
               <div className="bg-purple-50 border border-purple-100 p-3.5 rounded-2xl shrink-0 text-right">
                 <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">
-                  Plano Atual
+                  Plano Atual & Valor
                 </span>
-                <span className="text-lg font-black text-purple-950">
+                <span className="text-lg font-black text-purple-950 block">
                   {PLANS[currentPlanId]?.name || 'Profissional'}
                 </span>
+                <span className="text-xs font-extrabold text-purple-700">
+                  {PLANS[currentPlanId]?.priceMonthly || 'R$ 89,90/mês'}
+                </span>
               </div>
+            </div>
+
+            {/* Detailed Payment & Subscription Control Status Banner */}
+            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider block">
+                    Controle de Pagamento & Mensalidade
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-black text-gray-900">
+                      Valor da Assinatura: {PLANS[currentPlanId]?.priceMonthly || 'R$ 89,90/mês'}
+                    </span>
+                    <span className="text-gray-300">•</span>
+                    <span className="text-xs font-bold text-gray-600">
+                      Vencimento / Renovação: {subscription?.expires_at ? new Date(subscription.expires_at).toLocaleDateString('pt-BR') : 'Mensal Recorrente'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* WhatsApp Support / Payment Action Button */}
+                <a
+                  href={`https://wa.me/5511999998888?text=${encodeURIComponent(
+                    `Olá! Gostaria de consultar/regularizar a fatura da assinatura do StudioFlow para a minha barbearia "${business.name}" (Plano: ${PLANS[currentPlanId]?.name}, Status: ${subscription?.status || 'Ativo'}).`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-2 shadow-xs shrink-0"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Suporte Financeiro / Pix</span>
+                </a>
+              </div>
+
+              {/* Status Alert Messages */}
+              {subscription?.status === 'PAST_DUE' && (
+                <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-xs text-amber-900 flex items-start space-x-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block">Assinatura com Pagamento Pendente / Atrasado</span>
+                    <p className="text-[11px] text-amber-800 mt-0.5">
+                      Sua mensalidade de <strong>{PLANS[currentPlanId]?.priceMonthly}</strong> está pendente. Para evitar a suspensão automática dos agendamentos, solicite a chave Pix ou suporte financeiro acima.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subscription?.status === 'TRIAL' && (
+                <div className="bg-blue-50 border border-blue-200 p-3.5 rounded-xl text-xs text-blue-900 flex items-start space-x-2.5">
+                  <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block">Período de Teste Grátis Ativo (Trial)</span>
+                    <p className="text-[11px] text-blue-800 mt-0.5">
+                      Sua barbearia está utilizando o período de teste gratuito com todos os recursos do plano <strong>{PLANS[currentPlanId]?.name}</strong> liberados.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subscription?.status === 'ACTIVE' && (
+                <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl text-xs text-emerald-900 flex items-start space-x-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block">Assinatura Paga e Em Dia</span>
+                    <p className="text-[11px] text-emerald-800 mt-0.5">
+                      Sua assinatura está ativa e regularizada. Todos os recursos do plano {PLANS[currentPlanId]?.name} estão 100% disponíveis para seu estabelecimento.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Usage Gauges / Limits */}
@@ -987,23 +1437,44 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                     </ul>
                   </div>
 
-                  <button
-                    onClick={() => handleSelectPlan(p.id)}
-                    disabled={isCurrent || updatingPlan === p.id}
-                    className={`w-full py-3.5 rounded-2xl font-extrabold text-xs shadow-md transition cursor-pointer ${
-                      isCurrent
-                        ? 'bg-emerald-600 text-white cursor-default opacity-95'
-                        : isPopular
-                        ? 'bg-amber-400 text-purple-950 hover:bg-amber-300'
-                        : 'bg-purple-700 text-white hover:bg-purple-800'
-                    }`}
-                  >
-                    {updatingPlan === p.id
-                      ? 'ATUALIZANDO...'
-                      : isCurrent
-                      ? 'PLANO ATIVO'
-                      : 'SELECIONAR PLANO'}
-                  </button>
+                  <div className="space-y-2 pt-2">
+                    {/* Primary Button: Stripe Checkout */}
+                    <button
+                      type="button"
+                      onClick={() => handleStripeCheckout(p.id)}
+                      disabled={isStripeCheckingOut}
+                      className={`w-full py-3.5 rounded-2xl font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center space-x-2 ${
+                        isPopular
+                          ? 'bg-amber-400 hover:bg-amber-300 text-purple-950 shadow-amber-500/20'
+                          : 'bg-purple-700 hover:bg-purple-800 text-white shadow-purple-900/30'
+                      } disabled:opacity-50`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>
+                        {isStripeCheckingOut && stripeCheckingOutPlanId === p.id
+                          ? 'CONECTANDO AO STRIPE...'
+                          : isCurrent
+                          ? 'RENOVAR / PAGAR NO STRIPE'
+                          : 'ASSINAR COM STRIPE CHECKOUT'}
+                      </span>
+                    </button>
+
+                    {/* Secondary Button: Manual Switch */}
+                    {!isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectPlan(p.id)}
+                        disabled={updatingPlan === p.id || isStripeCheckingOut}
+                        className={`w-full py-2 rounded-xl font-bold text-[11px] transition cursor-pointer ${
+                          isPopular
+                            ? 'bg-purple-900/60 hover:bg-purple-900 text-purple-200 border border-purple-700/60'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                        } disabled:opacity-50`}
+                      >
+                        {updatingPlan === p.id ? 'ALTERANDO...' : 'Trocar para este plano sem checkout'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -1199,19 +1670,52 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-extrabold text-gray-700 mb-1">
-                  Status da Assinatura
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-extrabold text-gray-700">
+                    Status da Assinatura
+                  </label>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase">Controle Manual</span>
+                </div>
+
+                {/* Quick Presets for Admin */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditStatus('ACTIVE')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer border ${
+                      editStatus === 'ACTIVE'
+                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
+                        : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                    }`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Definir como Ativa</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditStatus('SUSPENDED')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center space-x-1.5 cursor-pointer border ${
+                      editStatus === 'SUSPENDED'
+                        ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                        : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+                    }`}
+                  >
+                    <PauseCircle className="w-3.5 h-3.5" />
+                    <span>Suspender Acesso</span>
+                  </button>
+                </div>
+
                 <select
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as SubscriptionStatus)}
-                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-800 focus:ring-2 focus:ring-purple-500 outline-hidden cursor-pointer"
                 >
-                  <option value="ACTIVE">Ativa (Acesso Total / Mês Pago)</option>
-                  <option value="TRIAL">Trial (Período de Testes)</option>
-                  <option value="PAST_DUE">Pendente de Pagamento</option>
-                  <option value="SUSPENDED">Suspensa (Acesso Bloqueado)</option>
-                  <option value="EXPIRED">Expirada</option>
+                  <option value="ACTIVE">✅ Ativa (Acesso Total / Mês Pago)</option>
+                  <option value="SUSPENDED">⏸️ Suspensa (Acesso Bloqueado / Inadimplente)</option>
+                  <option value="TRIAL">⏱️ Trial (Período de Testes)</option>
+                  <option value="PAST_DUE">⚠️ Pendente de Pagamento</option>
+                  <option value="EXPIRED">❌ Expirada (Prazo Finalizado)</option>
                 </select>
               </div>
 
@@ -1225,24 +1729,240 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                 </p>
               </div>
 
-              <div className="pt-3 flex items-center justify-end space-x-2 border-t border-gray-100">
+              <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                  onClick={() => {
+                    const toDel = editingItem;
+                    setEditingItem(null);
+                    setDeletingItem(toDel);
+                  }}
+                  className="px-3 py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition flex items-center space-x-1.5 cursor-pointer"
                 >
-                  Cancelar
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Excluir Barbearia</span>
                 </button>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-extrabold shadow-md transition cursor-pointer"
-                >
-                  {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingItem(null)}
+                    className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-extrabold shadow-md transition cursor-pointer"
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: CONFIRM DELETE SUBSCRIBER BUSINESS */}
+      {deletingItem && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 border border-rose-200 animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b border-rose-100 pb-3">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-gray-900">
+                    Excluir Barbearia Assinante
+                  </h3>
+                  <p className="text-xs text-rose-600 font-bold">
+                    Ação permanente e irreversível
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeletingItem(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3.5 bg-rose-50 rounded-2xl border border-rose-200 text-rose-950 space-y-2">
+                <p className="font-bold text-gray-900">
+                  Você está prestes a excluir o estabelecimento:
+                </p>
+                <div className="bg-white p-3 rounded-xl border border-rose-200 space-y-1">
+                  <p className="font-black text-sm text-gray-900">
+                    {deletingItem.business.name}
+                  </p>
+                  <p className="text-gray-600 font-medium">
+                    Responsável: <strong>{deletingItem.business.owner_name}</strong>
+                  </p>
+                  <p className="text-gray-500">
+                    Plano atual: <strong>{PLANS[deletingItem.subscription.plan_id || 'professional']?.name}</strong> • {deletingItem.business.email || 'Sem e-mail'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="font-extrabold text-gray-800 block text-xs">
+                  Os seguintes dados desta barbearia serão excluídos:
+                </span>
+                <ul className="space-y-1.5 text-[11px] text-gray-600 pl-1">
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Todos os <strong>clientes cadastrados</strong> e histórico de cortes</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Agenda completa, horários e <strong>agendamentos online</strong></span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Profissionais cadastrados, comissões e serviços</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Fluxo de caixa, vendas registradas e financeiro</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>Cartões de fidelidade, fichas de anamnese e fotos da galeria</span>
+                  </li>
+                  <li className="flex items-center space-x-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                    <span>A assinatura SaaS e permissões de acesso do estabelecimento</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="pt-3 flex items-center justify-end space-x-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeletingItem(null)}
+                disabled={isDeleting}
+                className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDeleteBusiness}
+                disabled={isDeleting}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isDeleting ? 'Excluindo...' : 'Sim, Excluir Barbearia'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: STRIPE CHECKOUT LINK GENERATOR MODAL */}
+      {stripeLinkModal && stripeLinkModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 border border-purple-100">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-700 text-white flex items-center justify-center font-bold">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg text-gray-900">
+                    Link do Stripe Checkout
+                  </h3>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {stripeLinkModal.bizName} • {stripeLinkModal.planName} ({stripeLinkModal.price})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setStripeLinkModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 text-purple-950 space-y-2">
+                <div className="flex items-center justify-between text-xs font-black">
+                  <span>Plano Selecionado</span>
+                  <span className="text-purple-800 bg-white px-2.5 py-0.5 rounded-full border border-purple-200">
+                    {stripeLinkModal.price}
+                  </span>
+                </div>
+                <p className="text-xs text-purple-900 leading-relaxed">
+                  Envie este link direto para o proprietário da barbearia efetuar o pagamento da assinatura mensal via Stripe Checkout. Assim que o pagamento for concluído, a assinatura é ativada automaticamente no sistema.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Link de Checkout Direto
+                </label>
+                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-300 flex items-center justify-between text-xs">
+                  <span className="font-mono text-gray-700 truncate pr-2 select-all">
+                    {stripeLinkModal.url}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(stripeLinkModal.url);
+                      setStripeLinkCopied(true);
+                      setTimeout(() => setStripeLinkCopied(false), 3000);
+                    }}
+                    className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold rounded-xl text-xs shrink-0 flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    {stripeLinkCopied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{stripeLinkCopied ? 'Copiado!' : 'Copiar'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const text = `Olá! Segue o link seguro para ativar a assinatura do plano ${stripeLinkModal.planName} (${stripeLinkModal.price}) da barbearia ${stripeLinkModal.bizName} no StudioFlow:\n\n${stripeLinkModal.url}`;
+                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>Enviar no WhatsApp</span>
+              </button>
+
+              <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setStripeLinkModal(null)}
+                  className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition cursor-pointer"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open(stripeLinkModal.url, '_blank')}
+                  className="px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-black shadow-md transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Abrir Checkout</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

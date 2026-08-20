@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { DB } from './db';
+import { DEMO_BUSINESS_ID } from './seedData';
 import { isPlatformOwner } from '../utils/auth';
 
 const STORAGE_KEY_SUBSCRIPTIONS = 'sf_subscriptions';
@@ -20,8 +21,8 @@ export const PLANS: Record<SaaSPlan, PlanDefinition> = {
     id: 'basic',
     name: 'Básico',
     description: 'Ideal para profissionais autônomos ou pequenas barbearias e salões em início.',
-    priceMonthly: 'R$ 59,90/mês',
-    priceNumeric: 59.9,
+    priceMonthly: 'R$ 39,90/mês',
+    priceNumeric: 39.9,
     isActive: true,
     limits: {
       maxProfessionals: 2,
@@ -42,8 +43,8 @@ export const PLANS: Record<SaaSPlan, PlanDefinition> = {
     id: 'professional',
     name: 'Profissional',
     description: 'Plano completo para estabelecimentos em crescimento acelerado.',
-    priceMonthly: 'R$ 99,90/mês',
-    priceNumeric: 99.9,
+    priceMonthly: 'R$ 69,99/mês',
+    priceNumeric: 69.99,
     isActive: true,
     limits: {
       maxProfessionals: 10,
@@ -74,8 +75,8 @@ export const PLANS: Record<SaaSPlan, PlanDefinition> = {
     id: 'premium',
     name: 'Premium Studio',
     description: 'Acesso total, recursos VIP, suporte prioritário e fichas técnicas.',
-    priceMonthly: 'R$ 149,90/mês',
-    priceNumeric: 149.9,
+    priceMonthly: 'R$ 99,90/mês',
+    priceNumeric: 99.9,
     isActive: true,
     limits: {
       maxProfessionals: 999999,
@@ -162,12 +163,8 @@ export class SubscriptionService {
 
     let sub: CompanySubscription | null = null;
 
-    // Check if business belongs to owner/admin
-    const biz = DB.getBusinessById(businessId);
-    const isOwnerBiz =
-      biz?.email?.toLowerCase().trim() === 'admin@studioflow.app' ||
-      biz?.email?.toLowerCase().trim() === '1980burguer@gmail.com' ||
-      isPlatformOwner(null, biz);
+    // Check if business is demo business
+    const isOwnerBiz = businessId === DEMO_BUSINESS_ID;
 
     if (isOwnerBiz) {
       sub = {
@@ -706,6 +703,75 @@ export class SubscriptionService {
   }
 
   /**
+   * Admin: Quick manual update of subscription status (ACTIVE, SUSPENDED, TRIAL, PAST_DUE, EXPIRED)
+   */
+  static async adminUpdateSubscriptionStatusAsync(
+    businessId: string,
+    newStatus: SubscriptionStatus
+  ): Promise<CompanySubscription> {
+    if (!businessId) throw new Error('business_id é obrigatório.');
+
+    const sub = await SubscriptionService.getCurrentSubscriptionAsync(businessId);
+    const now = new Date();
+
+    const updatedData: Partial<CompanySubscription> = {
+      status: newStatus,
+      updated_at: now.toISOString(),
+    };
+
+    // If activating and was expired/suspended, extend expiration if needed
+    if (newStatus === 'ACTIVE') {
+      const oneYearFromNow = new Date(now.getTime() + 365 * 86400000);
+      updatedData.expires_at = oneYearFromNow.toISOString();
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('subscriptions')
+          .upsert(
+            {
+              business_id: businessId,
+              plan_id: sub.plan_id || 'professional',
+              status: newStatus,
+              updated_at: now.toISOString(),
+              expires_at: updatedData.expires_at || sub.expires_at,
+            },
+            { onConflict: 'business_id' }
+          );
+      } catch (err) {
+        console.error('Error updating subscription status on Supabase:', err);
+      }
+    }
+
+    const raw = localStorage.getItem(STORAGE_KEY_SUBSCRIPTIONS);
+    const list: CompanySubscription[] = raw ? JSON.parse(raw) : [];
+    const idx = list.findIndex((s) => s.business_id === businessId);
+
+    let result: CompanySubscription;
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], ...updatedData };
+      result = list[idx];
+    } else {
+      result = {
+        id: `sub-${businessId}`,
+        business_id: businessId,
+        plan_id: sub.plan_id || 'professional',
+        status: newStatus,
+        started_at: now.toISOString(),
+        expires_at: updatedData.expires_at || null,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      };
+      list.push(result);
+    }
+
+    localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(list));
+    invalidateSubscriptionCache(businessId);
+    return result;
+  }
+
+  /**
    * Admin: Register new business with selected plan
    */
   static async adminCreateBusinessWithSubscriptionAsync(
@@ -760,5 +826,25 @@ export class SubscriptionService {
     );
 
     return { business: createdBiz, subscription: sub };
+  }
+
+  /**
+   * Admin: Delete a subscriber business and wipe all its multi-tenant data
+   */
+  static async adminDeleteBusinessAsync(businessId: string): Promise<boolean> {
+    if (!businessId) throw new Error('business_id é obrigatório.');
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('subscriptions').delete().eq('business_id', businessId);
+        await supabase.from('businesses').delete().eq('id', businessId);
+      } catch (err) {
+        console.error('Error deleting business on Supabase:', err);
+      }
+    }
+
+    const ok = DB.deleteBusiness(businessId);
+    invalidateSubscriptionCache(businessId);
+    return ok;
   }
 }

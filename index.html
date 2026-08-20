@@ -6,16 +6,46 @@
     <title>StudioFlow — Gestão Inteligente para Barbearias e Salões</title>
 
     <!-- PWA & Mobile Meta Tags -->
-    <meta name="theme-color" content="#7c3aed" />
+    <meta name="theme-color" content="#581c87" />
     <meta name="description" content="Sistema de gestão completo, agendamento online, vendas e controle financeiro para barbearias, salões e estúdios." />
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
+    <link rel="manifest" id="app-manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
 
     <!-- iOS Apple Web App support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="StudioFlow" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+
+    <!-- SPA & PWA Navigation Fallback Route Manager -->
+    <script>
+      (function() {
+        try {
+          // Normalize redirect parameters if routed through 404 proxy or hash redirect
+          var search = window.location.search;
+          var pathname = window.location.pathname;
+          var hash = window.location.hash;
+
+          // If query has redirect path (e.g. ?p=/agendar/slug or ?p=/planos)
+          if (search && search.indexOf('p=') > -1) {
+            var params = new URLSearchParams(search);
+            var redirectPath = params.get('p');
+            if (redirectPath) {
+              window.history.replaceState(null, '', redirectPath);
+            }
+          }
+
+          // Cache current navigation route for standalone PWA launch recovery
+          if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            sessionStorage.setItem('pwa_last_route', pathname + search + hash);
+          }
+        } catch (e) {
+          console.warn('Route fallback manager initialized with default:', e);
+        }
+      })();
+    </script>
   </head>
   <body class="bg-slate-100 text-slate-900 selection:bg-purple-600 selection:text-white">
     <div id="root"></div>

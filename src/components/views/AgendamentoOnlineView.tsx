@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Share2, Copy, Download, ExternalLink, Check, QrCode as QrCodeIcon, ShieldCheck } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Business } from '../../types';
+import { getPublicBookingUrl } from '../../utils/url';
 
 interface AgendamentoOnlineViewProps {
   business: Business;
@@ -14,14 +15,15 @@ export const AgendamentoOnlineView: React.FC<AgendamentoOnlineViewProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
-
-  const bookingUrl = `${window.location.origin}/agendar/${business.slug}`;
+  const [bookingUrl, setBookingUrl] = useState('');
 
   useEffect(() => {
-    QRCode.toDataURL(bookingUrl, { width: 300, margin: 2 })
-      .then((url) => setQrDataUrl(url))
+    const url = getPublicBookingUrl(business.slug);
+    setBookingUrl(url);
+    QRCode.toDataURL(url, { width: 300, margin: 2 })
+      .then((qrUrl) => setQrDataUrl(qrUrl))
       .catch((err) => console.error('Erro ao gerar QR Code:', err));
-  }, [bookingUrl]);
+  }, [business.slug]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(bookingUrl);

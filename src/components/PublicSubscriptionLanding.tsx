@@ -28,12 +28,14 @@ import {
 import QRCode from 'qrcode';
 import { PLANS, SubscriptionService } from '../services/subscription';
 import { SaaSPlan, FeatureKey } from '../types';
+import { getPublicPlansUrl } from '../utils/url';
 
 interface PublicSubscriptionLandingProps {
   onOpenSignup: (selectedPlan?: SaaSPlan) => void;
   onOpenLogin: () => void;
   onBackToApp?: () => void;
   isLoggedIn?: boolean;
+  isSuperAdmin?: boolean;
 }
 
 const getFeatureLabel = (feat: FeatureKey | string): string => {
@@ -82,19 +84,21 @@ export const PublicSubscriptionLanding: React.FC<PublicSubscriptionLandingProps>
   onOpenLogin,
   onBackToApp,
   isLoggedIn = false,
+  isSuperAdmin = false,
 }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [plansPageUrl, setPlansPageUrl] = useState('');
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
 
-  const plansPageUrl = `${window.location.origin}/planos`;
-
   useEffect(() => {
-    QRCode.toDataURL(plansPageUrl, { width: 300, margin: 2 })
-      .then((url) => setQrDataUrl(url))
+    const url = getPublicPlansUrl();
+    setPlansPageUrl(url);
+    QRCode.toDataURL(url, { width: 300, margin: 2 })
+      .then((qrUrl) => setQrDataUrl(qrUrl))
       .catch((err) => console.error('Erro ao gerar QR Code dos planos:', err));
-  }, [plansPageUrl]);
+  }, []);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(plansPageUrl);
@@ -160,7 +164,7 @@ export const PublicSubscriptionLanding: React.FC<PublicSubscriptionLandingProps>
               onClick={onBackToApp}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition"
             >
-              Voltar ao Painel
+              {isSuperAdmin ? 'Voltar ao Admin' : 'Voltar ao Meu Painel'}
             </button>
           )}
 

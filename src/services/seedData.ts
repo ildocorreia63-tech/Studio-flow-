@@ -61,7 +61,7 @@ export const initialProfiles: UserProfile[] = [
     business_id: DEMO_BUSINESS_ID,
     name: 'Gabriel Santos',
     email: 'admin@studioflow.app',
-    role: 'OWNER',
+    role: 'SUPER_ADMIN',
     phone: '11988887777',
     created_at: new Date().toISOString(),
   },

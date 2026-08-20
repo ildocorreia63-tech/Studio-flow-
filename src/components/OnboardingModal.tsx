@@ -1,21 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircle, ShieldCheck, Zap } from 'lucide-react';
+import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircle, ShieldCheck, Zap, X } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, BusinessType, UserProfile, SaaSPlan } from '../types';
 import { PLANS } from '../services/subscription';
 import { WhatsAppService } from '../utils/whatsapp';
+import { getPublicBookingUrl } from '../utils/url';
 
 interface OnboardingModalProps {
   isOpen: boolean;
   onComplete: (business: Business, owner: UserProfile) => void;
   initialPlan?: SaaSPlan;
+  onClose?: () => void;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   isOpen,
   onComplete,
   initialPlan = 'professional',
+  onClose,
 }) => {
   const [step, setStep] = useState(1);
 
@@ -155,7 +158,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           };
 
           // Disparar confirmação e boas-vindas no WhatsApp do Dono
-          const bookingUrl = `${window.location.origin}/agendar/${createdBiz.slug || slug}`;
+          const bookingUrl = getPublicBookingUrl(createdBiz.slug || slug);
           const planName = PLANS[selectedPlan]?.name || 'Profissional';
           const waUrl = WhatsAppService.sendOwnerWelcomeNotification({
             ownerName,
@@ -216,7 +219,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       });
 
       // Disparar confirmação e boas-vindas no WhatsApp do Dono
-      const bookingUrl = `${window.location.origin}/agendar/${createdBiz.slug || slug}`;
+      const bookingUrl = getPublicBookingUrl(createdBiz.slug || slug);
       const planName = PLANS[selectedPlan]?.name || 'Profissional';
       const waUrl = WhatsAppService.sendOwnerWelcomeNotification({
         ownerName,
@@ -241,7 +244,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-100 my-8">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-950 via-purple-900 to-indigo-950 p-6 sm:p-8 text-white">
+        <div className="bg-gradient-to-r from-purple-950 via-purple-900 to-indigo-950 p-6 sm:p-8 text-white relative">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-900/60 hover:bg-purple-800 text-purple-200 flex items-center justify-center transition border border-purple-700/50"
+              title="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
           <div className="flex items-center space-x-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-purple-700/60 flex items-center justify-center border border-purple-500/50">
               <Sparkles className="w-6 h-6 text-purple-200" />

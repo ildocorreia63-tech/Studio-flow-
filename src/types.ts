@@ -2,7 +2,7 @@
  * STUDIOFLOW V1.0 - Types & Interfaces
  */
 
-export type UserRole = 'OWNER' | 'ADMIN' | 'RECEPTIONIST' | 'PROFESSIONAL';
+export type UserRole = 'SUPER_ADMIN' | 'OWNER' | 'ADMIN' | 'RECEPTIONIST' | 'PROFESSIONAL';
 
 export type BusinessType =
   | 'Barbearia'
