@@ -55,12 +55,12 @@ export function App() {
     const hash = window.location.hash.toLowerCase();
 
     const isPlans =
-      path.startsWith('/planos') ||
-      path.startsWith('/assinar') ||
-      path.startsWith('/planos-saas') ||
-      path.startsWith('/precos') ||
-      path.startsWith('/pricing') ||
-      path.startsWith('/subscription') ||
+      path.includes('/planos') ||
+      path.includes('/assinar') ||
+      path.includes('/planos-saas') ||
+      path.includes('/precos') ||
+      path.includes('/pricing') ||
+      path.includes('/subscription') ||
       search.includes('planos=true') ||
       search.includes('page=planos') ||
       search.includes('tab=planos') ||
@@ -68,17 +68,17 @@ export function App() {
       hash.includes('planos') ||
       hash.includes('assinar');
 
-    let isBooking = path.startsWith('/agendar') || search.includes('agendar=') || hash.includes('/agendar/');
+    let isBooking = path.includes('/agendar') || search.includes('agendar=') || hash.includes('/agendar');
     let bookingSlug = 'studioflow-demo';
 
-    if (path.startsWith('/agendar')) {
-      const rawSlug = window.location.pathname.split('/agendar/')[1] || '';
+    if (path.includes('/agendar')) {
+      const rawSlug = window.location.pathname.split('/agendar')[1]?.replace(/^\//, '') || '';
       bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
     } else if (search.includes('agendar=')) {
       const params = new URLSearchParams(window.location.search);
       bookingSlug = params.get('agendar') || 'studioflow-demo';
-    } else if (hash.includes('/agendar/')) {
-      const rawSlug = window.location.hash.split('/agendar/')[1] || '';
+    } else if (hash.includes('/agendar')) {
+      const rawSlug = window.location.hash.split('/agendar')[1]?.replace(/^\//, '') || '';
       bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
     }
 
