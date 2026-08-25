@@ -20,6 +20,7 @@ import {
   Sparkles,
   PlusCircle,
   Building,
+  LogOut,
 } from 'lucide-react';
 import { ActiveTab, Business, UserProfile, UserRole } from '../types';
 import { isPlatformOwner } from '../utils/auth';
@@ -32,6 +33,7 @@ interface SidebarProps {
   currentUser?: UserProfile | null;
   onOpenNewAppointment: () => void;
   onOpenBusinessSwitcher: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentUser,
   onOpenNewAppointment,
   onOpenBusinessSwitcher,
+  onLogout,
 }) => {
   const isSaasOwner = isPlatformOwner(currentUser, currentBusiness);
 
@@ -151,9 +154,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Footer info */}
-      <div className="p-3.5 border-t border-slate-800/80 text-center text-[11px] text-slate-400">
-        <p>StudioFlow &copy; 2026</p>
+      {/* Footer info & Logout */}
+      <div className="p-3 border-t border-slate-800 space-y-2 bg-slate-950/40">
+        {currentUser && (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/60 border border-slate-700/60">
+            <div className="flex items-center space-x-2.5 truncate min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-purple-600/30 text-purple-200 border border-purple-400/30 font-black text-xs flex items-center justify-center shrink-0">
+                {currentUser.name ? currentUser.name.charAt(0) : 'U'}
+              </div>
+              <div className="truncate min-w-0">
+                <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                <p className="text-[9px] text-purple-300 font-semibold uppercase">{currentUser.role}</p>
+              </div>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 rounded-lg transition shrink-0"
+                title="Sair do sistema"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+        <p className="text-center text-[10px] text-slate-500 font-medium">StudioFlow &copy; 2026</p>
       </div>
     </aside>
   );

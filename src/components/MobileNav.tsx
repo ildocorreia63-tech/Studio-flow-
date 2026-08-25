@@ -22,6 +22,7 @@ import {
   PlusCircle,
   Building,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
 import { ActiveTab, Business, UserProfile, UserRole } from '../types';
 import { isPlatformOwner } from '../utils/auth';
@@ -33,6 +34,7 @@ interface MobileNavProps {
   currentUser?: UserProfile | null;
   currentBusiness?: Business | null;
   onOpenNewAppointment: () => void;
+  onLogout?: () => void;
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({
@@ -42,6 +44,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   currentUser,
   currentBusiness,
   onOpenNewAppointment,
+  onLogout,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const isSaasOwner = isPlatformOwner(currentUser, currentBusiness);
@@ -111,6 +114,35 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               </button>
             </div>
 
+            {/* User Profile & Logout Header in Drawer */}
+            {currentUser && (
+              <div className="p-3 bg-slate-800/90 rounded-2xl border border-slate-700/80 flex items-center justify-between">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-purple-600/30 text-purple-200 border border-purple-400/30 font-black text-sm flex items-center justify-center shrink-0">
+                    {currentUser.name ? currentUser.name.charAt(0) : 'U'}
+                  </div>
+                  <div className="truncate min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                    <p className="text-[10px] text-purple-300 font-semibold uppercase">{currentUser.role}</p>
+                  </div>
+                </div>
+
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shrink-0"
+                    title="Sair da conta"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sair</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2.5 pt-1">
               {filteredItems.map((item) => {
                 const Icon = item.icon;
@@ -134,6 +166,22 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                 );
               })}
             </div>
+
+            {/* Bottom Logout Button */}
+            {onLogout && (
+              <div className="pt-2 border-t border-slate-800">
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 bg-rose-950/40 hover:bg-rose-900/60 active:bg-rose-900 text-rose-300 border border-rose-800/60 rounded-xl text-xs font-bold transition"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sair do Sistema / Desconectar</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

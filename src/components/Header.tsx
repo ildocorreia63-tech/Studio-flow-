@@ -83,23 +83,23 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-purple-100/80 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-xs">
+    <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-purple-100/80 px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3.5 flex items-center justify-between shadow-xs">
       {/* Title / Mobile Brand */}
-      <div className="flex items-center space-x-3 sm:space-x-4">
+      <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 pr-1">
         {/* Mobile Logo & Name */}
-        <div className="lg:hidden flex items-center space-x-2.5">
-          <div className="w-11 h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center overflow-hidden border-2 border-purple-500/70 p-1 shadow-sm shrink-0">
+        <div className="lg:hidden flex items-center space-x-2 min-w-0">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-slate-900 text-white flex items-center justify-center overflow-hidden border-2 border-purple-500/70 p-0.5 sm:p-1 shadow-sm shrink-0">
             {currentBusiness?.logo_url ? (
               <img src={currentBusiness.logo_url} alt={currentBusiness.name} className="max-w-full max-h-full object-contain" />
             ) : (
-              <Sparkles className="w-6 h-6 text-purple-300" />
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-300" />
             )}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="font-black text-base sm:text-lg text-gray-900 tracking-tight leading-tight truncate max-w-[150px] sm:max-w-xs">
+            <span className="font-black text-sm sm:text-lg text-gray-900 tracking-tight leading-tight truncate max-w-[110px] xs:max-w-[150px] sm:max-w-xs">
               {currentBusiness?.name || 'StudioFlow'}
             </span>
-            <span className="text-[10px] font-bold text-purple-700 uppercase tracking-wider">
+            <span className="text-[9px] sm:text-[10px] font-bold text-purple-700 uppercase tracking-wider truncate">
               {getTabTitle(activeTab)}
             </span>
           </div>
@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Quick Actions & User Profile */}
-      <div className="flex items-center space-x-2.5 sm:space-x-4">
+      <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
         {/* Public Booking Link Button */}
         <button
           onClick={onOpenPublicBooking}
@@ -144,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative p-2 text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition border border-gray-200/80"
+            className="relative p-1.5 sm:p-2 text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition border border-gray-200/80"
             title="Notificações Internas CRM"
           >
             <Bell className="w-4 h-4 text-gray-700" />
@@ -238,28 +238,36 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Primary New Appointment Action */}
         <button
           onClick={onOpenNewAppointment}
-          className="bg-purple-700 hover:bg-purple-800 text-white font-semibold px-3.5 py-1.5 rounded-xl shadow-xs text-xs sm:text-sm flex items-center space-x-1.5 transition active:scale-98"
+          className="bg-purple-700 hover:bg-purple-800 text-white font-semibold px-2.5 sm:px-3.5 py-1.5 rounded-xl shadow-xs text-xs sm:text-sm flex items-center space-x-1 sm:space-x-1.5 transition active:scale-98 shrink-0"
         >
-          <PlusCircle className="w-4 h-4" />
+          <PlusCircle className="w-4 h-4 shrink-0" />
           <span className="hidden sm:inline">+ NOVO AGENDAMENTO</span>
-          <span className="sm:hidden">+ Agendar</span>
+          <span className="sm:hidden text-xs">Agendar</span>
         </button>
 
-        {/* Profile / Logout */}
-        <div className="flex items-center pl-2 border-l border-gray-200 space-x-2">
-          <div className="w-8 h-8 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center border border-purple-200">
+        {/* Profile / Logout Section */}
+        <div className="flex items-center pl-1.5 sm:pl-2 border-l border-gray-200 space-x-1.5 sm:space-x-2 shrink-0">
+          <div
+            className="w-8 h-8 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center border border-purple-200 shrink-0"
+            title={`${currentUser?.name || 'Usuário'} (${currentUser?.role || 'PROFESSIONAL'})`}
+          >
             {currentUser?.name ? currentUser.name.charAt(0) : 'U'}
           </div>
-          <div className="hidden md:block text-left">
-            <p className="text-xs font-bold text-gray-800 leading-tight">{currentUser?.name || 'Usuário'}</p>
-            <p className="text-[10px] text-purple-700 font-semibold uppercase">{currentUser?.role || 'PROFESSIONAL'}</p>
+
+          <div className="hidden md:block text-left max-w-[140px]">
+            <p className="text-xs font-bold text-gray-800 leading-tight truncate">{currentUser?.name || 'Usuário'}</p>
+            <p className="text-[10px] text-purple-700 font-semibold uppercase truncate">{currentUser?.role || 'PROFESSIONAL'}</p>
           </div>
+
+          {/* Explicit, high-contrast Sair / Logout Button */}
           <button
             onClick={onLogout}
-            className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-            title="Sair do sistema"
+            className="p-1.5 sm:px-2.5 sm:py-1 text-rose-600 hover:text-rose-700 bg-rose-50/80 hover:bg-rose-100 active:bg-rose-200 border border-rose-200/80 rounded-xl transition flex items-center space-x-1 shrink-0 shadow-2xs"
+            title="Sair da conta / Desconectar"
+            aria-label="Sair da conta"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span className="hidden lg:inline text-xs font-bold">Sair</span>
           </button>
         </div>
       </div>

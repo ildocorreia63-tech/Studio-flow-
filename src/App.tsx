@@ -340,6 +340,14 @@ export function App() {
     );
   }
 
+  const handleLogout = async () => {
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
+    setCurrentUser(null);
+    setCurrentBusiness(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row text-slate-900 font-sans">
       {/* Desktop Sidebar */}
@@ -351,6 +359,7 @@ export function App() {
         currentUser={currentUser}
         onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
         onOpenBusinessSwitcher={() => setIsAuthOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -366,13 +375,7 @@ export function App() {
             setIsPublicMode(true);
           }}
           onNavigateToTab={setActiveTab}
-          onLogout={async () => {
-            if (isSupabaseConfigured) {
-              await supabase.auth.signOut();
-            }
-            setCurrentUser(null);
-            setCurrentBusiness(null);
-          }}
+          onLogout={handleLogout}
         />
 
         {/* View Content */}
@@ -597,6 +600,7 @@ export function App() {
         currentUser={currentUser}
         currentBusiness={currentBusiness}
         onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* New Appointment Modal */}
