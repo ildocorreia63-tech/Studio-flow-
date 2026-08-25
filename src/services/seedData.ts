@@ -28,7 +28,7 @@ export const initialBusiness: Business = {
   id: DEMO_BUSINESS_ID,
   name: 'StudioFlow Beauty & Barber',
   type: 'Barbearia + Salão',
-  owner_name: 'Gabriel Santos',
+  owner_name: 'Ildo Correia de Lima',
   email: 'contato@studioflow.app',
   phone: '(11) 3456-7890',
   whatsapp: '11988887777',
@@ -59,7 +59,7 @@ export const initialProfiles: UserProfile[] = [
   {
     id: 'user-owner-1',
     business_id: DEMO_BUSINESS_ID,
-    name: 'Gabriel Santos',
+    name: 'Ildo Correia de Lima',
     email: 'admin@studioflow.app',
     role: 'SUPER_ADMIN',
     phone: '11988887777',
@@ -485,7 +485,7 @@ export const initialCashRegister: CashRegister = {
   initial_amount: 150.0,
   final_amount_expected: 290.0,
   status: 'OPEN',
-  opened_by_name: 'Gabriel Santos',
+  opened_by_name: 'Ildo Correia de Lima',
   sales_summary: {
     dinheiro: 50.0,
     pix: 140.0,

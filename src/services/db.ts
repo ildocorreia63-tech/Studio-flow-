@@ -195,6 +195,37 @@ export class DB {
     loadStorage(STORAGE_KEYS.AUDIT_LOGS, []);
     loadStorage(STORAGE_KEYS.NOTIFICATIONS, []);
     loadStorage(STORAGE_KEYS.BLOCKED_TIMES, []);
+
+    // Migration: update existing stored profiles & businesses from Gabriel Santos to Ildo Correia de Lima
+    try {
+      const storedProfiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+      let profilesChanged = false;
+      const updatedProfiles = storedProfiles.map(p => {
+        if (p.name === 'Gabriel Santos') {
+          profilesChanged = true;
+          return { ...p, name: 'Ildo Correia de Lima' };
+        }
+        return p;
+      });
+      if (profilesChanged) {
+        saveStorage(STORAGE_KEYS.PROFILES, updatedProfiles);
+      }
+
+      const storedBusinesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+      let bizChanged = false;
+      const updatedBiz = storedBusinesses.map(b => {
+        if (b.owner_name === 'Gabriel Santos') {
+          bizChanged = true;
+          return { ...b, owner_name: 'Ildo Correia de Lima' };
+        }
+        return b;
+      });
+      if (bizChanged) {
+        saveStorage(STORAGE_KEYS.BUSINESSES, updatedBiz);
+      }
+    } catch (e) {
+      console.warn('Migration error:', e);
+    }
   }
 
   // --- Reset to Demo Data ---
