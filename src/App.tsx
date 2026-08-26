@@ -86,13 +86,68 @@ export function App() {
   };
 
   const initialRoute = parseRoute();
+  
+  // Detection for returning users vs new visitors:
+  const isLoggedOutSaved = typeof window !== 'undefined' && localStorage.getItem('sf_logged_out') === 'true';
+  const hasAccountSaved = typeof window !== 'undefined' && localStorage.getItem('sf_has_account') === 'true';
+  const hasSessionSaved = typeof window !== 'undefined' && Boolean(localStorage.getItem('sf_session_user_id'));
+  
+  // A brand new visitor has no active session, has never registered an account and has not logged out
+  const isNewVisitor = !initialRoute.isBooking && !hasSessionSaved && !hasAccountSaved && !isLoggedOutSaved;
+
   const [isPublicMode, setIsPublicMode] = useState(initialRoute.isBooking);
-  const [isPublicPlansMode, setIsPublicPlansMode] = useState(initialRoute.isPlans);
+  const [isPublicPlansMode, setIsPublicPlansMode] = useState(initialRoute.isPlans || isNewVisitor);
   const [slugFromPath, setSlugFromPath] = useState(initialRoute.bookingSlug);
 
   // App Auth & Business state
   const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  // User Theme Preference state
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('theme_preference') as 'light' | 'dark' | null;
+      if (saved === 'dark' || saved === 'light') return saved;
+    }
+    return 'light';
+  });
+
+  // Synchronize theme with currentUser profile when loaded
+  useEffect(() => {
+    if (currentUser?.theme_preference) {
+      setTheme(currentUser.theme_preference);
+    }
+  }, [currentUser?.id, currentUser?.theme_preference]);
+
+  // Apply theme to document DOM and localStorage
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme_preference', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme_preference', 'light');
+      }
+    }
+  }, [theme]);
+
+  const handleUpdateTheme = async (newTheme: 'light' | 'dark') => {
+    setTheme(newTheme);
+    if (currentUser) {
+      setCurrentUser((prev) => (prev ? { ...prev, theme_preference: newTheme } : prev));
+      try {
+        await DB.updateUserProfileTheme(currentUser.id, newTheme);
+      } catch (err) {
+        console.error('Error saving user theme preference:', err);
+      }
+    }
+  };
+
+  const handleToggleTheme = () => {
+    const nextTheme: 'light' | 'dark' = theme === 'dark' ? 'light' : 'dark';
+    handleUpdateTheme(nextTheme);
+  };
 
   // Subscription state
   const [subscription, setSubscription] = useState<CompanySubscription | null>(null);
@@ -151,9 +206,55 @@ export function App() {
     }
   };
 
+  const handleLoginSuccess = (user: UserProfile, biz: Business) => {
+    setCurrentUser(user);
+    setCurrentBusiness(biz);
+    localStorage.setItem('sf_session_user_id', user.id);
+    localStorage.setItem('sf_session_biz_id', biz.id);
+    localStorage.setItem('sf_has_account', 'true');
+    localStorage.removeItem('sf_logged_out');
+    setIsAuthOpen(false);
+    setIsPublicPlansMode(false);
+    loadSubscriptionInfo(biz.id);
+    if (isPlatformOwner(user, biz)) {
+      setActiveTab('assinatura');
+    } else {
+      setActiveTab('dashboard');
+    }
+    window.history.pushState({}, '', '/');
+  };
+
+  const handleLogout = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error('Error signing out Supabase:', err);
+      }
+    }
+    localStorage.removeItem('sf_session_user_id');
+    localStorage.removeItem('sf_session_biz_id');
+    localStorage.setItem('sf_logged_out', 'true');
+    localStorage.setItem('sf_has_account', 'true');
+    setCurrentUser(null);
+    setCurrentBusiness(null);
+    setIsPublicPlansMode(false);
+    setIsAuthOpen(true);
+    window.history.pushState({}, '', '/');
+  };
+
   useEffect(() => {
     async function loadInitialSession() {
-      if (isSupabaseConfigured) {
+      // If user came via /agendar booking route, stay in booking mode
+      if (initialRoute.isBooking) return;
+
+      const isLoggedOut = localStorage.getItem('sf_logged_out') === 'true';
+      const hasAccount = localStorage.getItem('sf_has_account') === 'true';
+      const savedUserId = localStorage.getItem('sf_session_user_id');
+      const savedBizId = localStorage.getItem('sf_session_biz_id');
+
+      // 1. If Supabase configured and user was not logged out, attempt Supabase session restore
+      if (isSupabaseConfigured && !isLoggedOut) {
         try {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
@@ -174,6 +275,11 @@ export function App() {
               if (biz) {
                 setCurrentUser(profile);
                 setCurrentBusiness(biz);
+                localStorage.setItem('sf_session_user_id', profile.id);
+                localStorage.setItem('sf_session_biz_id', biz.id);
+                localStorage.setItem('sf_has_account', 'true');
+                localStorage.removeItem('sf_logged_out');
+                setIsPublicPlansMode(false);
                 loadSubscriptionInfo(biz.id);
                 return;
               }
@@ -184,18 +290,34 @@ export function App() {
         }
       }
 
-      // Fallback local DB initialization
-      const bizList = DB.getBusinesses();
-      if (bizList.length > 0) {
-        const demoBiz = bizList[0];
-        setCurrentBusiness(demoBiz);
-        loadSubscriptionInfo(demoBiz.id);
-
-        const profiles = DB.getProfiles(demoBiz.id);
-        if (profiles.length > 0) {
-          setCurrentUser(profiles[0]);
+      // 2. Local DB session restoration: if user has saved session and did NOT log out
+      if (savedUserId && savedBizId && !isLoggedOut) {
+        const businesses = DB.getBusinesses();
+        const targetBiz = businesses.find((b) => b.id === savedBizId) || businesses[0];
+        if (targetBiz) {
+          const profiles = DB.getProfiles(targetBiz.id);
+          const targetProfile = profiles.find((p) => p.id === savedUserId) || profiles[0];
+          if (targetProfile) {
+            setCurrentUser(targetProfile);
+            setCurrentBusiness(targetBiz);
+            setIsPublicPlansMode(false);
+            loadSubscriptionInfo(targetBiz.id);
+            return;
+          }
         }
       }
+
+      // 3. If user explicitly logged out or has registered account history on this browser -> Show Login screen
+      if (isLoggedOut || hasAccount) {
+        setCurrentUser(null);
+        setCurrentBusiness(null);
+        setIsPublicPlansMode(false);
+        setIsAuthOpen(true);
+        return;
+      }
+
+      // 4. Brand new user/visitor -> Show Public Subscription Landing Page (Frontpage)
+      setIsPublicPlansMode(true);
     }
 
     loadInitialSession();
@@ -256,22 +378,14 @@ export function App() {
 
         <AuthModal
           isOpen={isAuthOpen}
-          onLoginSuccess={(user, biz) => {
-            setCurrentUser(user);
-            setCurrentBusiness(biz);
-            setIsAuthOpen(false);
-            setIsPublicPlansMode(false);
-            loadSubscriptionInfo(biz.id);
-            if (isPlatformOwner(user, biz)) {
-              setActiveTab('assinatura');
-            } else {
-              setActiveTab('dashboard');
-            }
-            window.history.pushState({}, '', '/');
-          }}
+          onLoginSuccess={handleLoginSuccess}
           onOpenSignup={() => {
             setIsAuthOpen(false);
             setIsOnboardingOpen(true);
+          }}
+          onViewLandingPage={() => {
+            setIsAuthOpen(false);
+            setIsPublicPlansMode(true);
           }}
           onClose={() => setIsAuthOpen(false)}
         />
@@ -280,13 +394,8 @@ export function App() {
           isOpen={isOnboardingOpen}
           initialPlan={selectedPlanForOnboarding}
           onComplete={(createdBiz, createdOwner) => {
-            setCurrentBusiness(createdBiz);
-            setCurrentUser(createdOwner);
+            handleLoginSuccess(createdOwner, createdBiz);
             setIsOnboardingOpen(false);
-            setIsPublicPlansMode(false);
-            loadSubscriptionInfo(createdBiz.id);
-            setActiveTab('dashboard');
-            window.history.pushState({}, '', '/');
           }}
           onClose={() => setIsOnboardingOpen(false)}
         />
@@ -311,28 +420,20 @@ export function App() {
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
         <AuthModal
           isOpen={true}
-          onLoginSuccess={(user, biz) => {
-            setCurrentUser(user);
-            setCurrentBusiness(biz);
-            loadSubscriptionInfo(biz.id);
-            if (isPlatformOwner(user, biz)) {
-              setActiveTab('assinatura');
-            } else {
-              setActiveTab('dashboard');
-            }
-          }}
+          onLoginSuccess={handleLoginSuccess}
           onOpenSignup={() => setIsOnboardingOpen(true)}
+          onViewLandingPage={() => {
+            setIsPublicPlansMode(true);
+            window.history.pushState({}, '', '/planos');
+          }}
         />
 
         <OnboardingModal
           isOpen={isOnboardingOpen}
           initialPlan={selectedPlanForOnboarding}
           onComplete={(createdBiz, createdOwner) => {
-            setCurrentBusiness(createdBiz);
-            setCurrentUser(createdOwner);
+            handleLoginSuccess(createdOwner, createdBiz);
             setIsOnboardingOpen(false);
-            loadSubscriptionInfo(createdBiz.id);
-            setActiveTab('dashboard');
           }}
           onClose={() => setIsOnboardingOpen(false)}
         />
@@ -340,16 +441,8 @@ export function App() {
     );
   }
 
-  const handleLogout = async () => {
-    if (isSupabaseConfigured) {
-      await supabase.auth.signOut();
-    }
-    setCurrentUser(null);
-    setCurrentBusiness(null);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row text-slate-900 font-sans">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex flex-col md:flex-row text-slate-900 dark:text-slate-100 font-sans transition-colors">
       {/* Desktop Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -357,6 +450,8 @@ export function App() {
         currentBusiness={currentBusiness}
         userRole={currentUser.role}
         currentUser={currentUser}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
         onOpenBusinessSwitcher={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
@@ -369,6 +464,8 @@ export function App() {
           currentBusiness={currentBusiness}
           currentUser={currentUser}
           activeTab={activeTab}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
           onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
           onOpenPublicBooking={() => {
             window.history.pushState({}, '', `/agendar/${currentBusiness.slug}`);
@@ -585,6 +682,9 @@ export function App() {
           {activeTab === 'configuracoes' && (
             <ConfiguracoesView
               business={currentBusiness}
+              currentUser={currentUser}
+              theme={theme}
+              onUpdateTheme={handleUpdateTheme}
               onUpdateBusiness={setCurrentBusiness}
               onNavigate={(tab) => setActiveTab(tab)}
             />
@@ -599,6 +699,8 @@ export function App() {
         userRole={currentUser.role}
         currentUser={currentUser}
         currentBusiness={currentBusiness}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
         onLogout={handleLogout}
       />

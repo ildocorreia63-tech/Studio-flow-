@@ -205,12 +205,13 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
             </button>
           )}
 
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-slate-900 border-2 border-purple-400/80 shadow-2xl mx-auto flex items-center justify-center mb-3.5 overflow-hidden p-2 relative group">
-            {business.logo_url ? (
-              <img src={business.logo_url} alt={business.name} className="max-w-full max-h-full object-contain" />
-            ) : (
-              <Sparkles className="w-10 h-10 text-purple-200" />
-            )}
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-black border-2 border-purple-400/80 shadow-2xl mx-auto flex items-center justify-center mb-3.5 overflow-hidden p-1 relative group">
+            <img
+              src={business.logo_url || '/studioflow-logo.png'}
+              alt={business.name}
+              className="max-w-full max-h-full object-cover rounded-xl"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">{business.name}</h1>
           <p className="text-xs sm:text-sm text-purple-200 mt-1 font-medium">{business.address} — {business.city}/{business.state}</p>

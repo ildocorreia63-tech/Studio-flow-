@@ -37,6 +37,7 @@ export const initialBusiness: Business = {
   state: 'SP',
   zip_code: '01310-100',
   slug: 'studioflow-demo',
+  logo_url: '/studioflow-logo.png',
   plan: 'professional',
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -63,6 +64,7 @@ export const initialProfiles: UserProfile[] = [
     email: 'admin@studioflow.app',
     role: 'SUPER_ADMIN',
     phone: '11988887777',
+    theme_preference: 'light',
     created_at: new Date().toISOString(),
   },
   {
@@ -73,6 +75,7 @@ export const initialProfiles: UserProfile[] = [
     role: 'PROFESSIONAL',
     professional_id: 'prof-carlos',
     phone: '11977771111',
+    theme_preference: 'light',
     created_at: new Date().toISOString(),
   },
 ];

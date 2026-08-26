@@ -2,15 +2,19 @@ import React, { useState, useRef } from 'react';
 import {
   Settings, Save, RefreshCw, Check, AlertTriangle, Scissors, UserCheck, Globe, Upload,
   Image as ImageIcon, Link as LinkIcon, Trash2, Sparkles, Building, Crown, X, Smartphone,
-  Share, MoreVertical, PlusSquare, Monitor, Bell, CheckCircle2, Copy, ExternalLink, AlertCircle
+  Share, MoreVertical, PlusSquare, Monitor, Bell, CheckCircle2, Copy, ExternalLink, AlertCircle,
+  Sun, Moon, Palette
 } from 'lucide-react';
 import { DB } from '../../services/db';
-import { Business, ActiveTab } from '../../types';
+import { Business, ActiveTab, UserProfile } from '../../types';
 import { PwaService } from '../../services/pwaService';
 import { getPublicAppBaseUrl } from '../../utils/url';
 
 interface ConfiguracoesViewProps {
   business: Business;
+  currentUser?: UserProfile | null;
+  theme?: 'light' | 'dark';
+  onUpdateTheme?: (theme: 'light' | 'dark') => void;
   onUpdateBusiness: (updated: Business) => void;
   onNavigate?: (tab: ActiveTab) => void;
 }
@@ -27,6 +31,9 @@ const PRESET_LOGOS = [
 
 export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
   business,
+  currentUser,
+  theme = 'light',
+  onUpdateTheme,
   onUpdateBusiness,
   onNavigate,
 }) => {
@@ -218,9 +225,85 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
       )}
 
       {/* Header */}
-      <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-xs">
-        <h2 className="text-xl font-black text-gray-900">Configurações do Estabelecimento</h2>
-        <p className="text-xs text-gray-500">Altere informações cadastrais, logo público, contato e endereço</p>
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs transition-colors">
+        <h2 className="text-xl font-black text-gray-900 dark:text-white">Configurações do Estabelecimento</h2>
+        <p className="text-xs text-gray-500 dark:text-slate-400">Altere informações cadastrais, tema da interface, logo público, contato e endereço</p>
+      </div>
+
+      {/* Theme Preference / Dark Mode Section */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs space-y-4 transition-colors">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-purple-600 text-white rounded-xl shadow-xs">
+              <Palette className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Aparência do Sistema & Tema Visual</h3>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400">
+                Sua preferência de tema é salva no banco de dados e sincronizada em todos os seus dispositivos
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-950/80 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+            {theme === 'dark' ? 'Modo Escuro Ativo' : 'Modo Claro Ativo'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+          {/* Light Theme Card */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onUpdateTheme) onUpdateTheme('light');
+              triggerToast('Tema Claro ativado e salvo no seu perfil!');
+            }}
+            className={`p-4 rounded-2xl border-2 text-left transition flex items-start gap-3.5 cursor-pointer ${
+              theme === 'light'
+                ? 'border-purple-600 bg-purple-50/70 dark:bg-purple-950/40 shadow-sm'
+                : 'border-gray-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 bg-gray-50/50 dark:bg-slate-800/40'
+            }`}
+          >
+            <div className={`p-2.5 rounded-xl shrink-0 ${theme === 'light' ? 'bg-amber-500 text-white shadow-xs' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'}`}>
+              <Sun className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-gray-900 dark:text-white">Tema Claro (Light Mode)</h4>
+                {theme === 'light' && <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />}
+              </div>
+              <p className="text-[11px] text-gray-600 dark:text-slate-400 leading-relaxed">
+                Interface com fundo claro, alto contraste e visual limpo para uso diurno.
+              </p>
+            </div>
+          </button>
+
+          {/* Dark Theme Card */}
+          <button
+            type="button"
+            onClick={() => {
+              if (onUpdateTheme) onUpdateTheme('dark');
+              triggerToast('Tema Escuro ativado e salvo no seu perfil!');
+            }}
+            className={`p-4 rounded-2xl border-2 text-left transition flex items-start gap-3.5 cursor-pointer ${
+              theme === 'dark'
+                ? 'border-purple-500 bg-purple-950/50 text-white shadow-md'
+                : 'border-gray-200 dark:border-slate-800 hover:border-purple-300 dark:hover:border-slate-700 bg-gray-50/50 dark:bg-slate-800/40'
+            }`}
+          >
+            <div className={`p-2.5 rounded-xl shrink-0 ${theme === 'dark' ? 'bg-purple-600 text-white shadow-xs' : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'}`}>
+              <Moon className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-gray-900 dark:text-white">Tema Escuro (Dark Mode)</h4>
+                {theme === 'dark' && <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />}
+              </div>
+              <p className="text-[11px] text-gray-600 dark:text-slate-400 leading-relaxed">
+                Visual escuro refinado para reduzir a fadiga ocular em ambientes de pouca luz.
+              </p>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Navigation Quick Links */}

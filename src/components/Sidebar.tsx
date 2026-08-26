@@ -21,9 +21,12 @@ import {
   PlusCircle,
   Building,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { ActiveTab, Business, UserProfile, UserRole } from '../types';
 import { isPlatformOwner } from '../utils/auth';
+import { StudioFlowLogo } from './StudioFlowLogo';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -31,6 +34,8 @@ interface SidebarProps {
   currentBusiness: Business;
   userRole: UserRole;
   currentUser?: UserProfile | null;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
   onOpenNewAppointment: () => void;
   onOpenBusinessSwitcher: () => void;
   onLogout?: () => void;
@@ -42,6 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentBusiness,
   userRole,
   currentUser,
+  theme = 'light',
+  onToggleTheme,
   onOpenNewAppointment,
   onOpenBusinessSwitcher,
   onLogout,
@@ -77,20 +84,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-slate-900 text-slate-100 border-r border-slate-800 min-h-screen fixed left-0 top-0 bottom-0 z-30 shadow-xl select-none">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-950">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-purple-100 to-purple-300 bg-clip-text text-transparent">
-              STUDIOFLOW
-            </span>
-            <span className="block text-[10px] font-semibold text-purple-400 tracking-wider uppercase">
-              SaaS v1.0
-            </span>
-          </div>
-        </div>
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <StudioFlowLogo
+          size="md"
+          variant="horizontal"
+          showSubtitle={true}
+          onClick={() => setActiveTab('dashboard')}
+          className="cursor-pointer"
+        />
       </div>
 
       {/* Business Switcher Badge */}
@@ -154,7 +155,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Footer info & Logout */}
+      {/* Footer info, Theme Toggle & Logout */}
       <div className="p-3 border-t border-slate-800 space-y-2 bg-slate-950/40">
         {currentUser && (
           <div className="flex items-center justify-between p-2 rounded-xl bg-slate-800/60 border border-slate-700/60">
@@ -167,18 +168,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-[9px] text-purple-300 font-semibold uppercase">{currentUser.role}</p>
               </div>
             </div>
-            {onLogout && (
-              <button
-                onClick={onLogout}
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 rounded-lg transition shrink-0"
-                title="Sair do sistema"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            )}
+            
+            <div className="flex items-center space-x-1 shrink-0">
+              {onToggleTheme && (
+                <button
+                  onClick={onToggleTheme}
+                  className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-700/60 rounded-lg transition"
+                  title={theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
+                  aria-label="Alternar tema"
+                >
+                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-300" />}
+                </button>
+              )}
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/20 rounded-lg transition"
+                  title="Sair do sistema"
+                  aria-label="Sair da conta"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         )}
-        <p className="text-center text-[10px] text-slate-500 font-medium">StudioFlow &copy; 2026</p>
+        <div className="flex items-center justify-between text-[10px] text-slate-500 px-1 font-medium">
+          <span>StudioFlow SaaS &copy; 2026</span>
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              className="text-[10px] text-purple-400 hover:text-purple-300 font-semibold flex items-center space-x-1"
+            >
+              <span>{theme === 'dark' ? '☀️ Claro' : '🌙 Escuro'}</span>
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   );

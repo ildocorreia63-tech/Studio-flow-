@@ -419,11 +419,30 @@ export class DB {
     const newP: UserProfile = {
       ...profile,
       id: 'usr-' + Date.now(),
+      theme_preference: profile.theme_preference || 'light',
       created_at: new Date().toISOString(),
     };
     profiles.push(newP);
     saveStorage(STORAGE_KEYS.PROFILES, profiles);
     return newP;
+  }
+
+  static updateProfile(profileId: string, updates: Partial<UserProfile>): UserProfile | null {
+    const profiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+    const idx = profiles.findIndex((p) => p.id === profileId);
+    if (idx !== -1) {
+      profiles[idx] = {
+        ...profiles[idx],
+        ...updates,
+      };
+      saveStorage(STORAGE_KEYS.PROFILES, profiles);
+      return profiles[idx];
+    }
+    return null;
+  }
+
+  static updateUserProfileTheme(profileId: string, theme: 'light' | 'dark'): UserProfile | null {
+    return this.updateProfile(profileId, { theme_preference: theme });
   }
 
   // --- Professionals ---

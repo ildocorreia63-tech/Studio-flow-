@@ -20,9 +20,10 @@ import {
   CreditCard,
   Settings,
   PlusCircle,
-  Building,
   Sparkles,
   LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { ActiveTab, Business, UserProfile, UserRole } from '../types';
 import { isPlatformOwner } from '../utils/auth';
@@ -33,6 +34,8 @@ interface MobileNavProps {
   userRole: UserRole;
   currentUser?: UserProfile | null;
   currentBusiness?: Business | null;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
   onOpenNewAppointment: () => void;
   onLogout?: () => void;
 }
@@ -43,6 +46,8 @@ export const MobileNav: React.FC<MobileNavProps> = ({
   userRole,
   currentUser,
   currentBusiness,
+  theme = 'light',
+  onToggleTheme,
   onOpenNewAppointment,
   onLogout,
 }) => {
@@ -90,12 +95,13 @@ export const MobileNav: React.FC<MobileNavProps> = ({
           <div className="bg-slate-900 rounded-t-3xl max-h-[85vh] overflow-y-auto p-5 text-white shadow-2xl border-t border-slate-700 space-y-4">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-xl bg-slate-950 text-white flex items-center justify-center overflow-hidden border-2 border-purple-500/70 p-1 shadow-md shrink-0">
-                  {currentBusiness?.logo_url ? (
-                    <img src={currentBusiness.logo_url} alt={currentBusiness.name} className="max-w-full max-h-full object-contain" />
-                  ) : (
-                    <Sparkles className="w-6 h-6 text-purple-300" />
-                  )}
+                <div className="w-12 h-12 rounded-xl bg-black text-white flex items-center justify-center overflow-hidden border-2 border-purple-500/70 p-0.5 shadow-md shrink-0">
+                  <img
+                    src={currentBusiness?.logo_url || '/studioflow-logo.png'}
+                    alt={currentBusiness?.name || 'StudioFlow'}
+                    className="max-w-full max-h-full object-cover rounded-lg"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-extrabold text-base text-white truncate max-w-[190px]">
@@ -106,15 +112,27 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   </span>
                 </div>
               </div>
-              <button
-                onClick={() => setIsMenuOpen(false)}
-                className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              
+              <div className="flex items-center space-x-2">
+                {onToggleTheme && (
+                  <button
+                    onClick={onToggleTheme}
+                    className="p-2 rounded-xl bg-slate-800 text-amber-300 hover:text-amber-200 border border-slate-700 transition"
+                    title={theme === 'dark' ? 'Mudar para Tema Claro' : 'Mudar para Tema Escuro'}
+                  >
+                    {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5 text-slate-300" />}
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            {/* User Profile & Logout Header in Drawer */}
+            {/* User Profile & Theme Quick Card */}
             {currentUser && (
               <div className="p-3 bg-slate-800/90 rounded-2xl border border-slate-700/80 flex items-center justify-between">
                 <div className="flex items-center space-x-3 min-w-0">
@@ -127,19 +145,30 @@ export const MobileNav: React.FC<MobileNavProps> = ({
                   </div>
                 </div>
 
-                {onLogout && (
-                  <button
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      onLogout();
-                    }}
-                    className="px-3 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shrink-0"
-                    title="Sair da conta"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>Sair</span>
-                  </button>
-                )}
+                <div className="flex items-center space-x-1.5 shrink-0">
+                  {onToggleTheme && (
+                    <button
+                      onClick={onToggleTheme}
+                      className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1 border border-slate-600 transition"
+                    >
+                      {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-300" />}
+                      <span>{theme === 'dark' ? 'Claro' : 'Escuro'}</span>
+                    </button>
+                  )}
+                  {onLogout && (
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 active:bg-rose-500/40 text-rose-300 border border-rose-500/40 rounded-xl text-xs font-bold flex items-center space-x-1 transition shrink-0"
+                      title="Sair da conta"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sair</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -187,7 +216,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
       )}
 
       {/* Fixed Bottom Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 px-2 py-1.5 flex items-center justify-around lg:hidden shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200 dark:border-slate-800 px-2 py-1.5 flex items-center justify-around lg:hidden shadow-lg transition-colors">
         {mainTabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -196,10 +225,12 @@ export const MobileNav: React.FC<MobileNavProps> = ({
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition ${
-                isActive ? 'text-purple-700 font-bold' : 'text-gray-500 hover:text-gray-800'
+                isActive
+                  ? 'text-purple-700 dark:text-purple-400 font-bold'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-purple-700' : 'text-gray-500'}`} />
+              <Icon className={`w-5 h-5 ${isActive ? 'text-purple-700 dark:text-purple-400' : 'text-gray-500 dark:text-slate-400'}`} />
               <span className="text-[10px] mt-0.5">{tab.label}</span>
             </button>
           );
@@ -208,7 +239,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         {/* Center Quick Agendar Button */}
         <button
           onClick={onOpenNewAppointment}
-          className="bg-purple-700 text-white p-3 rounded-full shadow-lg shadow-purple-900/40 -mt-5 transition active:scale-95"
+          className="bg-purple-700 hover:bg-purple-800 text-white p-3 rounded-full shadow-lg shadow-purple-900/40 -mt-5 transition active:scale-95"
           title="Novo Agendamento"
         >
           <PlusCircle className="w-6 h-6" />
@@ -218,7 +249,9 @@ export const MobileNav: React.FC<MobileNavProps> = ({
         <button
           onClick={() => setIsMenuOpen(true)}
           className={`flex flex-col items-center py-1 px-2.5 rounded-xl transition ${
-            isMenuOpen ? 'text-purple-700 font-bold' : 'text-gray-500 hover:text-gray-800'
+            isMenuOpen
+              ? 'text-purple-700 dark:text-purple-400 font-bold'
+              : 'text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200'
           }`}
         >
           <Menu className="w-5 h-5" />

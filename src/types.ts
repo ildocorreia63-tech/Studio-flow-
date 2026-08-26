@@ -127,6 +127,7 @@ export interface UserProfile {
   phone?: string;
   avatar_url?: string;
   professional_id?: string;
+  theme_preference?: 'light' | 'dark';
   created_at: string;
 }
 

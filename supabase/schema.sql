@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
     role VARCHAR(50) NOT NULL DEFAULT 'OWNER', -- OWNER, ADMIN, PROFESSIONAL, RECEPTIONIST
     phone VARCHAR(50),
     avatar_url TEXT,
+    theme_preference VARCHAR(20) DEFAULT 'light', -- 'light' or 'dark'
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

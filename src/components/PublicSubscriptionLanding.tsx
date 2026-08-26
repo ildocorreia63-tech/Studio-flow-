@@ -29,6 +29,7 @@ import QRCode from 'qrcode';
 import { PLANS, SubscriptionService } from '../services/subscription';
 import { SaaSPlan, FeatureKey } from '../types';
 import { getPublicPlansUrl } from '../utils/url';
+import { StudioFlowLogo } from './StudioFlowLogo';
 
 interface PublicSubscriptionLandingProps {
   onOpenSignup: (selectedPlan?: SaaSPlan) => void;
@@ -147,16 +148,12 @@ export const PublicSubscriptionLanding: React.FC<PublicSubscriptionLandingProps>
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-purple-500 selection:text-white">
       {/* Top Sticky Bar */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-lg">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xl shadow-md border border-purple-400/50 p-1">
-            <Sparkles className="w-6 h-6 text-purple-100" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-black text-lg text-white tracking-tight leading-none">StudioFlow</span>
-            <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Planos & Assinaturas SaaS</span>
-          </div>
-        </div>
+      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 flex items-center justify-between shadow-lg">
+        <StudioFlowLogo
+          size="md"
+          variant="horizontal"
+          showSubtitle={true}
+        />
 
         <div className="flex items-center space-x-2 sm:space-x-3">
           {onBackToApp && isLoggedIn && (
@@ -190,6 +187,12 @@ export const PublicSubscriptionLanding: React.FC<PublicSubscriptionLandingProps>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl mx-auto space-y-6">
+          <div className="flex justify-center mb-2">
+            <div className="p-2.5 rounded-3xl bg-slate-900/80 border-2 border-purple-500/40 shadow-2xl shadow-purple-950/80 inline-flex items-center space-x-3">
+              <StudioFlowLogo variant="horizontal" size="lg" showSubtitle={true} />
+            </div>
+          </div>
+
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-purple-900/60 border border-purple-700/60 text-purple-300 text-xs font-bold uppercase tracking-wider shadow-inner">
             <Zap className="w-3.5 h-3.5 text-amber-400" />
             <span>SISTEMA COMPLETO DE GESTÃO PARA BARBEARIAS & SALÕES</span>

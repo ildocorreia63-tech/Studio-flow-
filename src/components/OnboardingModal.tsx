@@ -3,6 +3,7 @@ import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircl
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, BusinessType, UserProfile, SaaSPlan } from '../types';
+import { StudioFlowLogo } from './StudioFlowLogo';
 import { PLANS } from '../services/subscription';
 import { WhatsAppService } from '../utils/whatsapp';
 import { getPublicBookingUrl } from '../utils/url';
@@ -255,10 +256,11 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               <X className="w-4 h-4" />
             </button>
           )}
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-purple-700/60 flex items-center justify-center border border-purple-500/50">
-              <Sparkles className="w-6 h-6 text-purple-200" />
-            </div>
+          <div className="flex items-center space-x-3.5 mb-2">
+            <StudioFlowLogo
+              variant="icon"
+              size="md"
+            />
             <div>
               <h2 className="text-xl sm:text-2xl font-black tracking-tight">Criar Minha Barbearia / Salão</h2>
               <p className="text-xs text-purple-200">14 Dias de Teste Grátis • Ativação Imediata do Painel</p>

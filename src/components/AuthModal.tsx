@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
-import { Sparkles, Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle, X } from 'lucide-react';
+import { Sparkles, Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle, X, Globe, KeyRound } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, UserProfile } from '../types';
+import { StudioFlowLogo } from './StudioFlowLogo';
 
 interface AuthModalProps {
   isOpen: boolean;
   onLoginSuccess: (user: UserProfile, business: Business) => void;
   onOpenSignup: () => void;
   onClose?: () => void;
+  onViewLandingPage?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, onOpenSignup, onClose }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onLoginSuccess,
+  onOpenSignup,
+  onClose,
+  onViewLandingPage,
+}) => {
   const [email, setEmail] = useState('admin@studioflow.app');
   const [password, setPassword] = useState('123456');
   const [errorMsg, setErrorMsg] = useState('');
@@ -121,7 +129,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
       if (targetBiz && matchedProfile) {
         onLoginSuccess(matchedProfile, targetBiz);
       } else {
-        setErrorMsg('E-mail não cadastrado. Verifique o e-mail ou crie uma nova conta em "Criar Conta".');
+        setErrorMsg('E-mail não cadastrado. Verifique o e-mail digitado ou crie uma nova conta em "Criar Conta & Onboarding".');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar login.');
@@ -150,12 +158,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
     }
   };
 
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border border-purple-100 my-8">
+      <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-purple-100 dark:border-slate-800 my-8 transition-colors">
         {/* Header */}
-        <div className="bg-gradient-to-br from-purple-950 via-purple-900 to-indigo-950 p-8 text-white text-center relative">
+        <div className="bg-gradient-to-br from-slate-950 via-purple-950 to-indigo-950 p-7 text-white text-center relative border-b border-purple-900/40">
           {onClose && (
             <button
               type="button"
@@ -166,16 +173,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
               <X className="w-4 h-4" />
             </button>
           )}
-          <div className="w-14 h-14 rounded-2xl bg-purple-700/60 mx-auto flex items-center justify-center mb-3 shadow-lg shadow-purple-950">
-            <Sparkles className="w-8 h-8 text-purple-200" />
-          </div>
-          <h2 className="text-2xl font-black tracking-tight">STUDIOFLOW</h2>
-          <p className="text-xs text-purple-200 mt-1">Gestão inteligente para seu negócio de beleza.</p>
+          <StudioFlowLogo
+            variant="full"
+            size="lg"
+            showSubtitle={true}
+            className="mx-auto"
+          />
+          <p className="text-xs text-purple-200/90 mt-2 font-medium">Gestão inteligente para seu negócio de beleza</p>
         </div>
 
-        <div className="p-8">
+        <div className="p-6 sm:p-8">
           {errorMsg && (
-            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold rounded-xl flex items-center space-x-2">
+            <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold rounded-xl flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -183,11 +192,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
 
           {resetSuccess ? (
             <div className="text-center py-4 space-y-3">
-              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl">
+              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
                 ✓
               </div>
-              <h3 className="text-lg font-bold text-gray-900">Link enviado!</h3>
-              <p className="text-xs text-gray-600">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Link enviado!</h3>
+              <p className="text-xs text-gray-600 dark:text-slate-300">
                 Enviamos as instruções de recuperação de senha para <strong>{email}</strong>.
               </p>
               <button
@@ -196,18 +205,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
                   setResetSuccess(false);
                   setIsForgotPass(false);
                 }}
-                className="mt-2 text-xs font-bold text-purple-700 hover:underline"
+                className="mt-2 text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline"
               >
                 Voltar para o Login
               </button>
             </div>
           ) : isForgotPass ? (
             <form onSubmit={handleForgotPass} className="space-y-4">
-              <h3 className="text-base font-bold text-gray-900 text-center">Recuperação de Senha</h3>
-              <p className="text-xs text-gray-500 text-center">Digite seu e-mail para receber o link de redefinição.</p>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white text-center">Recuperação de Senha</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 text-center">Digite seu e-mail para receber o link de redefinição.</p>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">E-mail</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-1">E-mail</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
@@ -215,7 +224,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                     placeholder="seu@email.com"
                   />
                 </div>
@@ -223,15 +232,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
 
               <button
                 type="submit"
-                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-md text-sm transition"
+                disabled={loading}
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-md text-sm transition flex items-center justify-center space-x-2"
               >
-                RECUPERAR SENHA
+                {loading ? <span>Enviando...</span> : <span>RECUPERAR SENHA</span>}
               </button>
 
               <button
                 type="button"
                 onClick={() => setIsForgotPass(false)}
-                className="w-full text-xs font-bold text-gray-600 hover:underline text-center block pt-2"
+                className="w-full text-xs font-bold text-gray-600 dark:text-slate-400 hover:underline text-center block pt-2"
               >
                 Voltar ao Login
               </button>
@@ -239,7 +249,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">E-mail</label>
+                <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-1">E-mail</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
@@ -247,7 +257,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                     placeholder="admin@studioflow.app"
                   />
                 </div>
@@ -255,11 +265,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
 
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Senha</label>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Senha</label>
                   <button
                     type="button"
                     onClick={() => setIsForgotPass(true)}
-                    className="text-[11px] text-purple-700 hover:underline font-semibold"
+                    className="text-[11px] text-purple-700 dark:text-purple-400 hover:underline font-semibold"
                   >
                     ESQUECI MINHA SENHA
                   </button>
@@ -271,29 +281,73 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                     placeholder="••••••••"
                   />
                 </div>
               </div>
 
+              {/* Quick Fill Credentials */}
+              <div className="p-2.5 rounded-xl bg-purple-50/60 dark:bg-slate-800/60 border border-purple-100 dark:border-slate-700 text-[11px] text-gray-600 dark:text-slate-400">
+                <div className="flex items-center justify-between font-semibold text-purple-950 dark:text-purple-300 mb-1">
+                  <span className="flex items-center gap-1">
+                    <KeyRound className="w-3 h-3 text-purple-600" />
+                    Contas de Acesso Rápido:
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('admin@studioflow.app');
+                      setPassword('123456');
+                    }}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-purple-200 dark:border-slate-600 hover:border-purple-500 text-[10px] font-bold text-purple-800 dark:text-purple-300 transition"
+                  >
+                    👑 Admin Geral
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('contato@barbeariavip.com');
+                      setPassword('123456');
+                    }}
+                    className="px-2 py-0.5 rounded bg-white dark:bg-slate-700 border border-purple-200 dark:border-slate-600 hover:border-purple-500 text-[10px] font-bold text-purple-800 dark:text-purple-300 transition"
+                  >
+                    💈 Barbearia VIP
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
-                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-900/30 text-sm flex items-center justify-center space-x-2 transition"
+                disabled={loading}
+                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-900/30 text-sm flex items-center justify-center space-x-2 transition cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>ENTRAR</span>
+                <span>{loading ? 'ACESSANDO...' : 'ENTRAR'}</span>
               </button>
 
-              <div className="pt-4 text-center border-t border-gray-100">
-                <p className="text-xs text-gray-500 mb-2">Novo por aqui?</p>
+              <div className="pt-3 space-y-2 border-t border-gray-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={onOpenSignup}
-                  className="w-full border border-purple-200 text-purple-800 font-bold py-2.5 rounded-xl hover:bg-purple-50 text-xs transition"
+                  className="w-full border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 font-bold py-2.5 rounded-xl hover:bg-purple-50 dark:hover:bg-slate-800 text-xs transition flex items-center justify-center space-x-1.5"
                 >
-                  CRIAR CONTA & ONBOARDING
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>CRIAR CONTA & TESTAR GRÁTIS</span>
                 </button>
+
+                {onViewLandingPage && (
+                  <button
+                    type="button"
+                    onClick={onViewLandingPage}
+                    className="w-full text-slate-500 dark:text-slate-400 hover:text-purple-700 dark:hover:text-purple-300 text-xs font-semibold py-1.5 flex items-center justify-center space-x-1 transition"
+                  >
+                    <Globe className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Conhecer Planos & Apresentação (Página Inicial)</span>
+                  </button>
+                )}
               </div>
             </form>
           )}
@@ -302,3 +356,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onLoginSuccess, on
     </div>
   );
 };
+
