@@ -595,6 +595,7 @@ export class SubscriptionService {
 
     localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(list));
     invalidateSubscriptionCache(businessId);
+    DB.syncSubscribersToVault();
     return result;
   }
 
@@ -608,7 +609,7 @@ export class SubscriptionService {
       usage?: UsageStats;
     }>
   > {
-    const businesses = DB.getBusinesses();
+    const businesses = await DB.getBusinessesAsync();
     const results = await Promise.all(
       businesses.map(async (biz) => {
         const subscription = await SubscriptionService.getCurrentSubscriptionAsync(biz.id);
@@ -699,6 +700,7 @@ export class SubscriptionService {
 
     localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(list));
     invalidateSubscriptionCache(businessId);
+    DB.syncSubscribersToVault();
     return result;
   }
 
@@ -768,6 +770,7 @@ export class SubscriptionService {
 
     localStorage.setItem(STORAGE_KEY_SUBSCRIPTIONS, JSON.stringify(list));
     invalidateSubscriptionCache(businessId);
+    DB.syncSubscribersToVault();
     return result;
   }
 

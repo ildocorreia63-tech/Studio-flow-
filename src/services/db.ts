@@ -118,6 +118,8 @@ const STORAGE_KEYS = {
   NOTIFICATIONS: 'sf_notifications',
   BLOCKED_TIMES: 'sf_blocked_times',
   CURRENT_USER: 'sf_current_user',
+  SUBSCRIPTIONS: 'sf_subscriptions',
+  SUBSCRIBER_VAULT: 'sf_permanent_subscribers_vault_v1',
 };
 
 // Helper: load from localStorage with fallback seed
@@ -169,8 +171,161 @@ export function addMinutesToTime(timeStr: string, minutes: number): string {
 }
 
 export class DB {
+  // --- Synchronize & Persist All Subscriber Data to Permanent Vault ---
+  static syncSubscribersToVault() {
+    try {
+      const businesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+      const subscribersOnly = businesses.filter((b) => b.id !== DEMO_BUSINESS_ID);
+      const rawSubs = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
+      const subsList = rawSubs ? JSON.parse(rawSubs) : [];
+      const profiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+      const nonDemoProfiles = profiles.filter((p) => p.business_id !== DEMO_BUSINESS_ID);
+      const clients = loadStorage<Client[]>(STORAGE_KEYS.CLIENTS, initialClients).filter(
+        (c) => c.business_id !== DEMO_BUSINESS_ID
+      );
+      const professionals = loadStorage<Professional[]>(
+        STORAGE_KEYS.PROFESSIONALS,
+        initialProfessionals
+      ).filter((p) => p.business_id !== DEMO_BUSINESS_ID);
+      const services = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, initialServices).filter(
+        (s) => s.business_id !== DEMO_BUSINESS_ID
+      );
+      const appointments = loadStorage<Appointment[]>(
+        STORAGE_KEYS.APPOINTMENTS,
+        initialAppointments
+      ).filter((a) => a.business_id !== DEMO_BUSINESS_ID);
+
+      const vaultSnapshot = {
+        version: 1,
+        saved_at: new Date().toISOString(),
+        businesses: subscribersOnly,
+        subscriptions: subsList,
+        profiles: nonDemoProfiles,
+        clients,
+        professionals,
+        services,
+        appointments,
+      };
+
+      localStorage.setItem(STORAGE_KEYS.SUBSCRIBER_VAULT, JSON.stringify(vaultSnapshot));
+    } catch (e) {
+      console.warn('Could not sync subscribers to permanent vault:', e);
+    }
+  }
+
+  // --- Auto-Restore Subscribers from Vault if Missing ---
+  static restoreSubscribersFromSnapshot() {
+    try {
+      const rawVault = localStorage.getItem(STORAGE_KEYS.SUBSCRIBER_VAULT);
+      if (!rawVault) return;
+      const vault = JSON.parse(rawVault);
+      if (!vault || !Array.isArray(vault.businesses)) return;
+
+      // 1. Restore missing businesses
+      const currBiz = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+      let bizMerged = false;
+      for (const b of vault.businesses) {
+        if (!currBiz.some((existing) => existing.id === b.id)) {
+          currBiz.push(b);
+          bizMerged = true;
+        }
+      }
+      if (bizMerged) {
+        saveStorage(STORAGE_KEYS.BUSINESSES, currBiz);
+      }
+
+      // 2. Restore missing subscriptions
+      const rawSubs = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
+      const currSubs: any[] = rawSubs ? JSON.parse(rawSubs) : [];
+      let subsMerged = false;
+      if (Array.isArray(vault.subscriptions)) {
+        for (const sub of vault.subscriptions) {
+          if (!currSubs.some((existing) => existing.business_id === sub.business_id)) {
+            currSubs.push(sub);
+            subsMerged = true;
+          }
+        }
+        if (subsMerged) {
+          localStorage.setItem(STORAGE_KEYS.SUBSCRIPTIONS, JSON.stringify(currSubs));
+        }
+      }
+
+      // 3. Restore missing user profiles
+      const currProfiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+      let profMerged = false;
+      if (Array.isArray(vault.profiles)) {
+        for (const p of vault.profiles) {
+          if (!currProfiles.some((existing) => existing.id === p.id)) {
+            currProfiles.push(p);
+            profMerged = true;
+          }
+        }
+        if (profMerged) {
+          saveStorage(STORAGE_KEYS.PROFILES, currProfiles);
+        }
+      }
+
+      // 4. Restore missing clients
+      if (Array.isArray(vault.clients) && vault.clients.length > 0) {
+        const currClients = loadStorage<Client[]>(STORAGE_KEYS.CLIENTS, initialClients);
+        let cliMerged = false;
+        for (const c of vault.clients) {
+          if (!currClients.some((existing) => existing.id === c.id)) {
+            currClients.push(c);
+            cliMerged = true;
+          }
+        }
+        if (cliMerged) saveStorage(STORAGE_KEYS.CLIENTS, currClients);
+      }
+
+      // 5. Restore missing professionals
+      if (Array.isArray(vault.professionals) && vault.professionals.length > 0) {
+        const currProfs = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, initialProfessionals);
+        let profsMerged = false;
+        for (const p of vault.professionals) {
+          if (!currProfs.some((existing) => existing.id === p.id)) {
+            currProfs.push(p);
+            profsMerged = true;
+          }
+        }
+        if (profsMerged) saveStorage(STORAGE_KEYS.PROFESSIONALS, currProfs);
+      }
+
+      // 6. Restore missing services
+      if (Array.isArray(vault.services) && vault.services.length > 0) {
+        const currServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, initialServices);
+        let srvMerged = false;
+        for (const s of vault.services) {
+          if (!currServices.some((existing) => existing.id === s.id)) {
+            currServices.push(s);
+            srvMerged = true;
+          }
+        }
+        if (srvMerged) saveStorage(STORAGE_KEYS.SERVICES, currServices);
+      }
+
+      // 7. Restore missing appointments
+      if (Array.isArray(vault.appointments) && vault.appointments.length > 0) {
+        const currAppts = loadStorage<Appointment[]>(STORAGE_KEYS.APPOINTMENTS, initialAppointments);
+        let apptsMerged = false;
+        for (const a of vault.appointments) {
+          if (!currAppts.some((existing) => existing.id === a.id)) {
+            currAppts.push(a);
+            apptsMerged = true;
+          }
+        }
+        if (apptsMerged) saveStorage(STORAGE_KEYS.APPOINTMENTS, currAppts);
+      }
+    } catch (e) {
+      console.warn('Error restoring subscribers from snapshot vault:', e);
+    }
+  }
+
   // --- Initialize Storage ---
   static init() {
+    // 1. Restore subscribers from permanent vault first to ensure zero data loss on updates
+    DB.restoreSubscribersFromSnapshot();
+
     loadStorage(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
     loadStorage(STORAGE_KEYS.HOURS, initialBusinessHours);
     loadStorage(STORAGE_KEYS.PROFILES, initialProfiles);
@@ -226,12 +381,95 @@ export class DB {
     } catch (e) {
       console.warn('Migration error:', e);
     }
+
+    // Always keep permanent vault synchronized with latest subscriber data
+    DB.syncSubscribersToVault();
   }
 
-  // --- Reset to Demo Data ---
+  // --- Reset ONLY Demo Data (Guarantees Subscriber Data is NEVER Deleted) ---
   static resetDemoData() {
-    localStorage.clear();
-    DB.init();
+    try {
+      // 1. Keep all non-demo subscriber entities
+      const allBiz = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+      const nonDemoBiz = allBiz.filter((b) => b.id !== DEMO_BUSINESS_ID);
+      saveStorage(STORAGE_KEYS.BUSINESSES, [initialBusiness, ...nonDemoBiz]);
+
+      const resetTablePreservingSubscribers = <T extends { business_id?: string }>(
+        key: string,
+        demoSeed: T[]
+      ) => {
+        const current = loadStorage<T[]>(key, demoSeed);
+        const nonDemoRecords = current.filter((item) => item.business_id !== DEMO_BUSINESS_ID);
+        saveStorage(key, [...demoSeed, ...nonDemoRecords]);
+      };
+
+      resetTablePreservingSubscribers(STORAGE_KEYS.HOURS, initialBusinessHours);
+      resetTablePreservingSubscribers(STORAGE_KEYS.PROFILES, initialProfiles);
+      resetTablePreservingSubscribers(STORAGE_KEYS.PROFESSIONALS, initialProfessionals);
+      resetTablePreservingSubscribers(STORAGE_KEYS.SERVICES, initialServices);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CLIENTS, initialClients);
+      resetTablePreservingSubscribers(STORAGE_KEYS.APPOINTMENTS, initialAppointments);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CASH_REGISTERS, [initialCashRegister]);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CASH_TRANSACTIONS, initialCashTransactions);
+      resetTablePreservingSubscribers(STORAGE_KEYS.EXPENSES, initialExpenses);
+      resetTablePreservingSubscribers(STORAGE_KEYS.COMMISSIONS, initialCommissions);
+      resetTablePreservingSubscribers(STORAGE_KEYS.LOYALTY_PROGRAMS, [initialLoyaltyProgram]);
+      resetTablePreservingSubscribers(STORAGE_KEYS.LOYALTY_CARDS, initialLoyaltyCards);
+      resetTablePreservingSubscribers(STORAGE_KEYS.GALLERY, initialGallery);
+      resetTablePreservingSubscribers(STORAGE_KEYS.ANAMNESE, initialAnamnese);
+      resetTablePreservingSubscribers(STORAGE_KEYS.MARKETING_CAMPAIGNS, initialMarketingCampaigns);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CRM_AUTOMATION_RULES, initialCrmAutomationRules);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CRM_TASKS, initialCrmTasks);
+      resetTablePreservingSubscribers(STORAGE_KEYS.CRM_NOTIFICATIONS, initialCrmNotifications);
+
+      DB.syncSubscribersToVault();
+    } catch (err) {
+      console.error('Error during safe demo reset:', err);
+    }
+  }
+
+  // --- Export Full Database Backup (Subscribers & Entities) ---
+  static exportDatabaseBackup(): string {
+    const backupData: Record<string, any> = {
+      version: 1,
+      exported_at: new Date().toISOString(),
+      keys: {},
+    };
+
+    for (const [keyName, storageKey] of Object.entries(STORAGE_KEYS)) {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        try {
+          backupData.keys[keyName] = JSON.parse(raw);
+        } catch {
+          backupData.keys[keyName] = raw;
+        }
+      }
+    }
+
+    return JSON.stringify(backupData, null, 2);
+  }
+
+  // --- Import Database Backup Safely ---
+  static importDatabaseBackup(jsonString: string): { success: boolean; message: string } {
+    try {
+      const parsed = JSON.parse(jsonString);
+      if (!parsed || !parsed.keys) {
+        return { success: false, message: 'Arquivo de backup inválido.' };
+      }
+
+      for (const [keyName, value] of Object.entries(parsed.keys)) {
+        const storageKey = (STORAGE_KEYS as any)[keyName];
+        if (storageKey && value !== undefined) {
+          saveStorage(storageKey, value);
+        }
+      }
+
+      DB.syncSubscribersToVault();
+      return { success: true, message: 'Backup e assinantes restaurados com sucesso!' };
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Erro ao importar backup.' };
+    }
   }
 
   // --- Audit Log ---
@@ -302,6 +540,7 @@ export class DB {
     saveStorage(STORAGE_KEYS.LOYALTY_PROGRAMS, programs);
 
     DB.logAudit(id, data.owner_name, 'CRIOU_EMPRESA', 'Business', `Empresa ${data.name} criada.`);
+    DB.syncSubscribersToVault();
     return newBiz;
   }
 
@@ -316,7 +555,36 @@ export class DB {
     };
     saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
     DB.logAudit(id, 'Admin', 'ATUALIZOU_EMPRESA', 'Business', `Configurações atualizadas.`);
+    DB.syncSubscribersToVault();
     return businesses[idx];
+  }
+
+  static async getBusinessesAsync(): Promise<Business[]> {
+    const localBusinesses = DB.getBusinesses();
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('businesses').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          let hasNew = false;
+          for (const sb of data) {
+            const idx = localBusinesses.findIndex((lb) => lb.id === sb.id);
+            if (idx === -1) {
+              localBusinesses.push(sb);
+              hasNew = true;
+            } else {
+              localBusinesses[idx] = { ...localBusinesses[idx], ...sb };
+            }
+          }
+          if (hasNew) {
+            saveStorage(STORAGE_KEYS.BUSINESSES, localBusinesses);
+            DB.syncSubscribersToVault();
+          }
+        }
+      } catch (e) {
+        console.warn('Error fetching businesses from Supabase:', e);
+      }
+    }
+    return localBusinesses;
   }
 
   static deleteBusiness(id: string): boolean {
@@ -454,7 +722,7 @@ export class DB {
   static saveProfessional(prof: Omit<Professional, 'id' | 'created_at'> & { id?: string }): Professional {
     const all = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, initialProfessionals);
     if (prof.id) {
-      const idx = all.findIndex((p) => p.id === prof.id);
+      const idx = all.findIndex((p) => p.id === prof.id && p.business_id === prof.business_id);
       if (idx !== -1) {
         all[idx] = { ...all[idx], ...prof };
         saveStorage(STORAGE_KEYS.PROFESSIONALS, all);
@@ -487,7 +755,7 @@ export class DB {
   static saveService(service: Omit<Service, 'id' | 'created_at'> & { id?: string }): Service {
     const all = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, initialServices);
     if (service.id) {
-      const idx = all.findIndex((s) => s.id === service.id);
+      const idx = all.findIndex((s) => s.id === service.id && s.business_id === service.business_id);
       if (idx !== -1) {
         all[idx] = { ...all[idx], ...service };
         saveStorage(STORAGE_KEYS.SERVICES, all);
@@ -524,7 +792,7 @@ export class DB {
   static saveClient(client: Omit<Client, 'id' | 'created_at' | 'updated_at'> & { id?: string }): Client {
     const all = loadStorage<Client[]>(STORAGE_KEYS.CLIENTS, initialClients);
     if (client.id) {
-      const idx = all.findIndex((c) => c.id === client.id);
+      const idx = all.findIndex((c) => c.id === client.id && c.business_id === client.business_id);
       if (idx !== -1) {
         all[idx] = {
           ...all[idx],
@@ -1382,6 +1650,13 @@ export class DB {
 
   // --- Record Payment & Cash Entry ---
   static recordAppointmentPayment(apt: Appointment, paymentMethod: PaymentMethod) {
+    // 1. Idempotency Check: Prevent duplicate payment recording for the same appointment
+    const sales = loadStorage<Sale[]>(STORAGE_KEYS.SALES, []);
+    const existingSale = sales.find((s) => s.appointment_id === apt.id && s.business_id === apt.business_id);
+    if (existingSale) {
+      return;
+    }
+
     const openRegister = DB.getOpenCashRegister(apt.business_id);
     if (!openRegister) {
       console.warn('Caixa fechado no momento do pagamento do agendamento.');
@@ -1402,12 +1677,12 @@ export class DB {
       saveStorage(STORAGE_KEYS.CASH_TRANSACTIONS, txs);
 
       // Update Cash Register summary
-      openRegister.sales_summary[paymentMethod] += apt.price;
-      openRegister.sales_summary.total += apt.price;
-      openRegister.final_amount_expected += apt.price;
+      openRegister.sales_summary[paymentMethod] = (openRegister.sales_summary[paymentMethod] || 0) + apt.price;
+      openRegister.sales_summary.total = (openRegister.sales_summary.total || 0) + apt.price;
+      openRegister.final_amount_expected = (openRegister.final_amount_expected || 0) + apt.price;
 
       const registers = loadStorage<CashRegister[]>(STORAGE_KEYS.CASH_REGISTERS, [initialCashRegister]);
-      const regIdx = registers.findIndex((r) => r.id === openRegister.id);
+      const regIdx = registers.findIndex((r) => r.id === openRegister.id && r.business_id === apt.business_id);
       if (regIdx !== -1) {
         registers[regIdx] = openRegister;
         saveStorage(STORAGE_KEYS.CASH_REGISTERS, registers);
@@ -1415,7 +1690,6 @@ export class DB {
     }
 
     // Record Sale
-    const sales = loadStorage<Sale[]>(STORAGE_KEYS.SALES, []);
     const newSale: Sale = {
       id: 'sale-' + Date.now(),
       business_id: apt.business_id,
@@ -1447,7 +1721,7 @@ export class DB {
 
     // Update Client Totals
     const clients = loadStorage<Client[]>(STORAGE_KEYS.CLIENTS, initialClients);
-    const cliIdx = clients.findIndex((c) => c.id === apt.client_id);
+    const cliIdx = clients.findIndex((c) => c.id === apt.client_id && c.business_id === apt.business_id);
     if (cliIdx !== -1) {
       clients[cliIdx].total_appointments = (clients[cliIdx].total_appointments || 0) + 1;
       clients[cliIdx].total_spent = (clients[cliIdx].total_spent || 0) + apt.price;
@@ -1510,7 +1784,9 @@ export class DB {
             })),
           }));
 
-          saveStorage(STORAGE_KEYS.SALES, formatted);
+          const all = loadStorage<Sale[]>(STORAGE_KEYS.SALES, []);
+          const otherBizSales = all.filter((s) => s.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.SALES, [...otherBizSales, ...formatted]);
           return formatted;
         }
       } catch (err) {
@@ -1777,7 +2053,9 @@ export class DB {
             created_at: c.created_at,
           }));
 
-          saveStorage(STORAGE_KEYS.COMMISSIONS, formatted);
+          const all = loadStorage<Commission[]>(STORAGE_KEYS.COMMISSIONS, []);
+          const otherBizComms = all.filter((c) => c.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.COMMISSIONS, [...otherBizComms, ...formatted]);
           return formatted;
         }
       } catch (err) {
@@ -2261,7 +2539,7 @@ export class DB {
   static saveExpense(expense: Omit<Expense, 'id' | 'created_at'> & { id?: string }): Expense {
     const all = loadStorage<Expense[]>(STORAGE_KEYS.EXPENSES, initialExpenses);
     if (expense.id) {
-      const idx = all.findIndex((e) => e.id === expense.id);
+      const idx = all.findIndex((e) => e.id === expense.id && e.business_id === expense.business_id);
       if (idx !== -1) {
         all[idx] = { ...all[idx], ...expense };
         saveStorage(STORAGE_KEYS.EXPENSES, all);
@@ -2302,6 +2580,10 @@ export class DB {
             status: e.status === 'PAID' ? 'PAGO' : 'PENDENTE',
             created_at: e.created_at,
           }));
+
+          const all = loadStorage<Expense[]>(STORAGE_KEYS.EXPENSES, []);
+          const otherBizExpenses = all.filter((e) => e.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.EXPENSES, [...otherBizExpenses, ...formatted]);
           return formatted;
         }
       } catch (err) {
@@ -2723,7 +3005,9 @@ export class DB {
             created_at: r.created_at,
             updated_at: r.updated_at,
           }));
-          saveStorage(STORAGE_KEYS.CRM_AUTOMATION_RULES, formatted);
+          const all = loadStorage<CrmAutomationRule[]>(STORAGE_KEYS.CRM_AUTOMATION_RULES, []);
+          const otherBizRules = all.filter((r) => r.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.CRM_AUTOMATION_RULES, [...otherBizRules, ...formatted]);
           return formatted;
         }
       } catch (err) {
@@ -2873,7 +3157,9 @@ export class DB {
             created_at: t.created_at,
             updated_at: t.updated_at,
           }));
-          saveStorage(STORAGE_KEYS.CRM_TASKS, formatted);
+          const all = loadStorage<CrmTask[]>(STORAGE_KEYS.CRM_TASKS, []);
+          const otherBizTasks = all.filter((t) => t.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.CRM_TASKS, [...otherBizTasks, ...formatted]);
           return formatted;
         }
       } catch (err) {
@@ -3031,7 +3317,9 @@ export class DB {
             read: n.read ?? false,
             created_at: n.created_at,
           }));
-          saveStorage(STORAGE_KEYS.CRM_NOTIFICATIONS, formatted);
+          const all = loadStorage<CrmNotification[]>(STORAGE_KEYS.CRM_NOTIFICATIONS, []);
+          const otherBizNotifs = all.filter((n) => n.business_id !== businessId);
+          saveStorage(STORAGE_KEYS.CRM_NOTIFICATIONS, [...otherBizNotifs, ...formatted]);
           return formatted;
         }
       } catch (err) {

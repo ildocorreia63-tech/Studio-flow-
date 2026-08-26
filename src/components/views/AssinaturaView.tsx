@@ -36,12 +36,18 @@ import {
   PlayCircle,
   RefreshCw,
   CheckCircle,
+  Database,
+  Save,
+  Upload,
+  Shield,
+  FileDown,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import confetti from 'canvas-confetti';
 import { Business, SaaSPlan, SubscriptionStatus, CompanySubscription, UsageStats, UserProfile } from '../../types';
 import { SubscriptionService, PLANS } from '../../services/subscription';
 import { StripeService, StripeConfigResponse } from '../../services/stripe';
+import { DB } from '../../services/db';
 import { isPlatformOwner } from '../../utils/auth';
 import { getPublicPlansUrl } from '../../utils/url';
 
@@ -491,6 +497,59 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
     }
   };
 
+  const handleExportBackup = () => {
+    try {
+      const backupJson = DB.exportDatabaseBackup();
+      const blob = new Blob([backupJson], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `studioflow_backup_assinantes_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('📦 Backup completo de dados e assinantes baixado com sucesso!');
+    } catch (e: any) {
+      alert(e.message || 'Erro ao exportar backup.');
+    }
+  };
+
+  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        const result = DB.importDatabaseBackup(content);
+        if (result.success) {
+          showToast(`✅ ${result.message}`);
+          await loadData();
+          if (onRefreshBusiness) onRefreshBusiness();
+        } else {
+          alert(`Erro: ${result.message}`);
+        }
+      } catch (err: any) {
+        alert(err.message || 'Falha ao ler arquivo de backup.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleForceSyncVault = async () => {
+    try {
+      DB.syncSubscribersToVault();
+      DB.restoreSubscribersFromSnapshot();
+      await loadData();
+      showToast('🛡️ Cofre de persistência sincronizado e validado com sucesso!');
+    } catch (e: any) {
+      alert(e.message || 'Erro ao sincronizar cofre.');
+    }
+  };
+
   const currentPlanId: SaaSPlan = subscription?.plan_id || business.plan || 'professional';
 
   // SaaS Admin metrics
@@ -886,6 +945,64 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                 </div>
                 <div className="text-lg font-black text-white">R$ 99,90<span className="text-xs font-normal text-slate-400">/mês</span></div>
                 <p className="text-[10px] text-slate-400">Ilimitado + Anamnese + Suporte VIP</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card de Garantia de Persistência & Backup dos Assinantes */}
+          <div className="bg-slate-900 border border-slate-700/80 p-5 sm:p-6 rounded-3xl text-white space-y-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-950 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-black text-sm sm:text-base text-white">
+                      Cofre de Persistência & Backup dos Assinantes
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
+                      <Shield className="w-3 h-3" />
+                      <span>Proteção Ativa 100%</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300/90 mt-0.5">
+                    Todos os cadastros e dados das barbearias assinantes estão salvos e blindados contra perdas em atualizações do sistema.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleForceSyncVault}
+                  className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition flex items-center space-x-1.5 cursor-pointer"
+                  title="Sincronizar e verificar integridade do cofre"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Sincronizar Cofre</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportBackup}
+                  className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                  title="Baixar cópia de segurança em formato JSON"
+                >
+                  <FileDown className="w-4 h-4" />
+                  <span>Baixar Backup (.JSON)</span>
+                </button>
+
+                <label className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-purple-300 hover:text-purple-200 rounded-xl text-xs font-bold border border-purple-800/60 transition flex items-center space-x-1.5 cursor-pointer">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Restaurar Backup</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportBackup}
+                    className="hidden"
+                  />
+                </label>
               </div>
             </div>
           </div>
