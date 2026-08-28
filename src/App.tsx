@@ -347,6 +347,19 @@ export function App() {
     }
   };
 
+  if (isPublicMode) {
+    return (
+      <PublicBooking
+        businessSlug={slugFromPath || currentBusiness?.slug || 'studioflow-demo'}
+        onBackToApp={() => {
+          window.history.pushState({}, '', '/');
+          setIsPublicMode(false);
+          setIsPublicPlansMode(false);
+        }}
+      />
+    );
+  }
+
   if (isPublicPlansMode) {
     const isSuperAdmin = isPlatformOwner(currentUser, currentBusiness);
     return (
@@ -400,18 +413,6 @@ export function App() {
           onClose={() => setIsOnboardingOpen(false)}
         />
       </>
-    );
-  }
-
-  if (isPublicMode) {
-    return (
-      <PublicBooking
-        businessSlug={slugFromPath || currentBusiness?.slug || 'studioflow-demo'}
-        onBackToApp={() => {
-          window.history.pushState({}, '', '/');
-          setIsPublicMode(false);
-        }}
-      />
     );
   }
 
@@ -469,6 +470,8 @@ export function App() {
           onOpenNewAppointment={() => setIsNewAppointmentOpen(true)}
           onOpenPublicBooking={() => {
             window.history.pushState({}, '', `/agendar/${currentBusiness.slug}`);
+            setSlugFromPath(currentBusiness.slug);
+            setIsPublicPlansMode(false);
             setIsPublicMode(true);
           }}
           onNavigateToTab={setActiveTab}
@@ -637,6 +640,8 @@ export function App() {
               business={currentBusiness}
               onOpenPublicBooking={() => {
                 window.history.pushState({}, '', `/agendar/${currentBusiness.slug}`);
+                setSlugFromPath(currentBusiness.slug);
+                setIsPublicPlansMode(false);
                 setIsPublicMode(true);
               }}
             />

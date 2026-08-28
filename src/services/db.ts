@@ -498,7 +498,42 @@ export class DB {
   }
 
   static getBusinessBySlug(slug: string): Business | undefined {
-    return DB.getBusinesses().find((b) => b.slug.toLowerCase() === slug.toLowerCase());
+    if (!slug) return undefined;
+    const clean = slug.toLowerCase().trim();
+    const businesses = DB.getBusinesses();
+    
+    // 1. Direct slug match
+    let found = businesses.find((b) => b.slug && b.slug.toLowerCase() === clean);
+    if (found) return found;
+
+    // 2. ID match
+    found = businesses.find((b) => b.id === slug);
+    if (found) return found;
+
+    // 3. Normalized slug / name match
+    const normalizedTarget = clean
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    found = businesses.find((b) => {
+      const bSlugNorm = (b.slug || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      const bNameNorm = (b.name || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      return bSlugNorm === normalizedTarget || bNameNorm === normalizedTarget;
+    });
+
+    return found;
   }
 
   static createBusiness(data: Omit<Business, 'id' | 'created_at' | 'updated_at'>): Business {
@@ -513,7 +548,7 @@ export class DB {
     businesses.push(newBiz);
     saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
 
-    // Initialize business hours for new business
+    // 1. Initialize business hours for new business
     const hours: BusinessHours[] = [0, 1, 2, 3, 4, 5, 6].map((day) => ({
       id: `bh-${id}-${day}`,
       business_id: id,
@@ -525,7 +560,77 @@ export class DB {
     const currentHours = loadStorage<BusinessHours[]>(STORAGE_KEYS.HOURS, []);
     saveStorage(STORAGE_KEYS.HOURS, [...currentHours, ...hours]);
 
-    // Initialize loyalty program
+    // 2. Initialize default services so public booking works out-of-the-box
+    const currentServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, []);
+    const defaultServices: Service[] = [
+      {
+        id: `srv-${id}-1`,
+        business_id: id,
+        name: 'Corte Masculino Tradicional',
+        description: 'Corte completo com lavagem, finalização e penteado personalizado',
+        price: 45,
+        duration_minutes: 30,
+        commission_rate: 50,
+        category: 'Cabelo',
+        active: true,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: `srv-${id}-2`,
+        business_id: id,
+        name: 'Barba Terapia & Alinhamento',
+        description: 'Design de barba com toalha quente, hidratação e óleos essenciais',
+        price: 35,
+        duration_minutes: 30,
+        commission_rate: 50,
+        category: 'Barbearia',
+        active: true,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: `srv-${id}-3`,
+        business_id: id,
+        name: 'Combo Cabelo + Barba VIP',
+        description: 'Atendimento completo: corte de cabelo + barba com terapia e acabamento',
+        price: 75,
+        duration_minutes: 55,
+        commission_rate: 50,
+        category: 'Barbearia',
+        active: true,
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: `srv-${id}-4`,
+        business_id: id,
+        name: 'Pezinho & Acabamento Navalhado',
+        description: 'Alinhamento dos contornos, costeletas e nuca com navalha',
+        price: 20,
+        duration_minutes: 15,
+        commission_rate: 50,
+        category: 'Cabelo',
+        active: true,
+        created_at: new Date().toISOString(),
+      },
+    ];
+    saveStorage(STORAGE_KEYS.SERVICES, [...currentServices, ...defaultServices]);
+
+    // 3. Initialize default professional (Owner / Barber)
+    const currentProfessionals = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, []);
+    const defaultProf: Professional = {
+      id: `prof-${id}-1`,
+      business_id: id,
+      name: data.owner_name || 'Barbeiro Principal',
+      phone: data.phone || data.whatsapp || '11999998888',
+      whatsapp: data.whatsapp || data.phone || '11999998888',
+      email: data.email || `contato@${newBiz.slug}.app`,
+      specialty: 'Cortes Masculinos & Barboterapia',
+      commission_rate: 50,
+      status: 'active',
+      created_at: new Date().toISOString(),
+    };
+    saveStorage(STORAGE_KEYS.PROFESSIONALS, [...currentProfessionals, defaultProf]);
+
+    // 4. Initialize loyalty program
     const programs = loadStorage<LoyaltyProgram[]>(STORAGE_KEYS.LOYALTY_PROGRAMS, []);
     programs.push({
       id: `loyalty-${id}`,
@@ -539,8 +644,58 @@ export class DB {
     });
     saveStorage(STORAGE_KEYS.LOYALTY_PROGRAMS, programs);
 
+    // 5. Initialize Cash Register
+    const currentRegisters = loadStorage<CashRegister[]>(STORAGE_KEYS.CASH_REGISTERS, []);
+    currentRegisters.push({
+      id: `cash-${id}-1`,
+      business_id: id,
+      opened_at: new Date().toISOString(),
+      initial_amount: 0,
+      final_amount_expected: 0,
+      status: 'OPEN',
+      opened_by_name: data.owner_name || 'Administrador',
+      sales_summary: {
+        dinheiro: 0,
+        pix: 0,
+        debito: 0,
+        credito: 0,
+        total: 0,
+      },
+    });
+    saveStorage(STORAGE_KEYS.CASH_REGISTERS, currentRegisters);
+
     DB.logAudit(id, data.owner_name, 'CRIOU_EMPRESA', 'Business', `Empresa ${data.name} criada.`);
     DB.syncSubscribersToVault();
+
+    // Async push to Supabase if available
+    if (isSupabaseConfigured) {
+      try {
+        supabase
+          .from('businesses')
+          .insert([
+            {
+              id: newBiz.id,
+              name: newBiz.name,
+              slug: newBiz.slug,
+              type: newBiz.type,
+              phone: newBiz.phone,
+              whatsapp: newBiz.whatsapp,
+              address: newBiz.address,
+              city: newBiz.city,
+              state: newBiz.state,
+              zip_code: newBiz.zip_code,
+              logo_url: newBiz.logo_url || null,
+              plan: newBiz.plan,
+            },
+          ])
+          .then(({ error }) => {
+            if (error) console.warn('Supabase business sync error:', error);
+          });
+      } catch (err) {
+        console.warn('Supabase business insert caught error:', err);
+      }
+    }
+
     return newBiz;
   }
 
@@ -556,6 +711,25 @@ export class DB {
     saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
     DB.logAudit(id, 'Admin', 'ATUALIZOU_EMPRESA', 'Business', `Configurações atualizadas.`);
     DB.syncSubscribersToVault();
+
+    // Sync to Supabase if configured
+    if (isSupabaseConfigured) {
+      try {
+        supabase
+          .from('businesses')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id)
+          .then(({ error }) => {
+            if (error) console.warn('Supabase business update error:', error);
+          });
+      } catch (err) {
+        console.warn('Supabase updateBusiness caught error:', err);
+      }
+    }
+
     return businesses[idx];
   }
 

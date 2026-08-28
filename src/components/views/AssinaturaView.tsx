@@ -65,6 +65,51 @@ interface BusinessSubItem {
   usage?: UsageStats;
 }
 
+const PRESET_LOGOS = [
+  { id: 'classic', name: 'Barbearia Clássica', url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=300&q=80' },
+  { id: 'vintage', name: 'Vintage Barber', url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=300&q=80' },
+  { id: 'modern', name: 'Studio Moderno', url: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=300&q=80' },
+  { id: 'gold', name: 'Barber Gold', url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=300&q=80' },
+  { id: 'gentleman', name: 'Gentleman Club', url: 'https://images.unsplash.com/photo-1517832606589-7150a6d71c82?auto=format&fit=crop&w=300&q=80' },
+  { id: 'luxury', name: 'Premium Studio', url: 'https://images.unsplash.com/photo-1532710093739-9470acff878f?auto=format&fit=crop&w=300&q=80' },
+];
+
+function compressImageFile(file: File, maxWidth = 350, maxHeight = 350, quality = 0.82): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve((e.target?.result as string) || '');
+        }
+      };
+      img.onerror = () => resolve((e.target?.result as string) || '');
+      img.src = (e.target?.result as string) || '';
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
   business,
   currentUser,
@@ -97,13 +142,49 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
   const [newBizOwner, setNewBizOwner] = useState('');
   const [newBizEmail, setNewBizEmail] = useState('');
   const [newBizPhone, setNewBizPhone] = useState('');
+  const [newBizSlug, setNewBizSlug] = useState('');
+  const [newBizAddress, setNewBizAddress] = useState('');
+  const [newBizCity, setNewBizCity] = useState('');
+  const [newBizLogo, setNewBizLogo] = useState('');
   const [newBizPlan, setNewBizPlan] = useState<SaaSPlan>('professional');
   const [newBizStatus, setNewBizStatus] = useState<SubscriptionStatus>('ACTIVE');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states for Edit Modal
+  const [editBizName, setEditBizName] = useState('');
+  const [editBizOwner, setEditBizOwner] = useState('');
+  const [editBizEmail, setEditBizEmail] = useState('');
+  const [editBizPhone, setEditBizPhone] = useState('');
+  const [editBizSlug, setEditBizSlug] = useState('');
+  const [editBizAddress, setEditBizAddress] = useState('');
+  const [editBizCity, setEditBizCity] = useState('');
+  const [editBizLogo, setEditBizLogo] = useState('');
   const [editPlan, setEditPlan] = useState<SaaSPlan>('professional');
   const [editStatus, setEditStatus] = useState<SubscriptionStatus>('ACTIVE');
+
+  // Quick edit modal for store identity in "my_plan"
+  const [isEditIdentityModalOpen, setIsEditIdentityModalOpen] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const handleLogoFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (url: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingLogo(true);
+      const compressed = await compressImageFile(file, 400, 400, 0.85);
+      if (compressed) {
+        setter(compressed);
+      }
+    } catch (err) {
+      console.error('Erro ao processar imagem:', err);
+    } finally {
+      setIsUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
 
   // Delete Business Modal state
   const [deletingItem, setDeletingItem] = useState<BusinessSubItem | null>(null);
@@ -359,10 +440,14 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       setIsSubmitting(true);
       await SubscriptionService.adminCreateBusinessWithSubscriptionAsync(
         {
-          name: newBizName,
-          owner_name: newBizOwner,
-          email: newBizEmail,
-          phone: newBizPhone,
+          name: newBizName.trim(),
+          owner_name: newBizOwner.trim(),
+          email: newBizEmail.trim() || undefined,
+          phone: newBizPhone.trim() || undefined,
+          slug: newBizSlug.trim() || undefined,
+          address: newBizAddress.trim() || undefined,
+          city: newBizCity.trim() || undefined,
+          logo_url: newBizLogo.trim() || undefined,
         },
         newBizPlan,
         newBizStatus
@@ -374,13 +459,32 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       setNewBizOwner('');
       setNewBizEmail('');
       setNewBizPhone('');
-      loadData();
-    } catch (err) {
+      setNewBizSlug('');
+      setNewBizAddress('');
+      setNewBizCity('');
+      setNewBizLogo('');
+      if (onRefreshBusiness) onRefreshBusiness();
+      await loadData();
+    } catch (err: any) {
       console.error('Error creating business:', err);
-      alert('Erro ao cadastrar barbearia.');
+      alert(err.message || 'Erro ao cadastrar barbearia.');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleOpenEditModal = (item: BusinessSubItem) => {
+    setEditingItem(item);
+    setEditBizName(item.business.name || '');
+    setEditBizOwner(item.business.owner_name || '');
+    setEditBizPhone(item.business.phone || item.business.whatsapp || '');
+    setEditBizEmail(item.business.email || '');
+    setEditBizSlug(item.business.slug || '');
+    setEditBizAddress(item.business.address || '');
+    setEditBizCity(item.business.city || '');
+    setEditBizLogo(item.business.logo_url || '');
+    setEditPlan(item.subscription.plan_id || 'professional');
+    setEditStatus(item.subscription.status || 'ACTIVE');
   };
 
   const handleSaveEditSubscription = async (e: React.FormEvent) => {
@@ -403,28 +507,67 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       }
 
       if (validation.warningMessage) {
-        const confirmed = window.confirm(`${validation.warningMessage}\n\nDeseja confirmar as alterações para a barbearia ${editingItem.business.name}?`);
+        const confirmed = window.confirm(`${validation.warningMessage}\n\nDeseja confirmar as alterações para a barbearia ${editBizName || editingItem.business.name}?`);
         if (!confirmed) {
           setIsSubmitting(false);
           return;
         }
       }
 
-      await SubscriptionService.adminUpdateSubscriptionAsync(
+      await SubscriptionService.adminUpdateBusinessFullAsync(
         editingItem.business.id,
+        {
+          name: editBizName.trim() || editingItem.business.name,
+          owner_name: editBizOwner.trim() || editingItem.business.owner_name,
+          phone: editBizPhone.trim(),
+          whatsapp: editBizPhone.trim(),
+          email: editBizEmail.trim(),
+          slug: editBizSlug.trim() || editingItem.business.slug,
+          address: editBizAddress.trim(),
+          city: editBizCity.trim(),
+          logo_url: editBizLogo.trim(),
+        },
         editPlan,
         editStatus
       );
 
-      showToast(`Plano de ${editingItem.business.name} atualizado com sucesso!`);
+      showToast(`Dados e plano de "${editBizName || editingItem.business.name}" atualizados com sucesso!`);
       setEditingItem(null);
-      if (onRefreshBusiness && editingItem.business.id === business.id) {
+      if (onRefreshBusiness) {
         onRefreshBusiness();
       }
-      loadData();
+      await loadData();
     } catch (err: any) {
       console.error('Error updating subscription:', err);
       alert(err.message || 'Erro ao atualizar assinatura.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveIdentityModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      const updated = DB.updateBusiness(business.id, {
+        name: editBizName.trim() || business.name,
+        owner_name: editBizOwner.trim() || business.owner_name,
+        phone: editBizPhone.trim() || business.phone,
+        whatsapp: editBizPhone.trim() || business.whatsapp,
+        email: editBizEmail.trim() || business.email,
+        address: editBizAddress.trim() || business.address,
+        city: editBizCity.trim() || business.city,
+        logo_url: editBizLogo.trim(),
+      });
+      if (updated && onRefreshBusiness) {
+        onRefreshBusiness();
+      }
+      showToast('Identidade da barbearia e Logo salvos com sucesso!');
+      setIsEditIdentityModalOpen(false);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error updating business identity:', err);
+      alert('Erro ao salvar identidade da loja.');
     } finally {
       setIsSubmitting(false);
     }
@@ -1112,22 +1255,31 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                     }`}
                   >
                     <div className="space-y-3">
-                      {/* Top Header */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h4 className="font-extrabold text-base text-gray-900">
-                              {item.business.name}
-                            </h4>
-                            {isCurrentActive && (
-                              <span className="bg-purple-100 text-purple-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-purple-200">
-                                Painel Aberto
-                              </span>
+                      {/* Top Header with Logo */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center space-x-3 min-w-0">
+                          <div className="w-12 h-12 rounded-2xl bg-purple-50 border-2 border-purple-200 flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-inner">
+                            {item.business.logo_url ? (
+                              <img src={item.business.logo_url} alt={item.business.name} className="max-w-full max-h-full object-contain" />
+                            ) : (
+                              <Building2 className="w-6 h-6 text-purple-600" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">
-                            Dono: <strong>{item.business.owner_name}</strong>
-                          </p>
+                          <div className="min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-extrabold text-base text-gray-900 truncate">
+                                {item.business.name}
+                              </h4>
+                              {isCurrentActive && (
+                                <span className="bg-purple-100 text-purple-800 text-[10px] font-black uppercase px-2 py-0.5 rounded-full border border-purple-200 shrink-0">
+                                  Painel Aberto
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 font-medium mt-0.5 truncate">
+                              Dono: <strong>{item.business.owner_name}</strong>
+                            </p>
+                          </div>
                         </div>
 
                         <div className="shrink-0">{getStatusBadge(item.subscription.status)}</div>
@@ -1157,11 +1309,19 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
 
                         <div className="col-span-1 sm:col-span-2 pt-1 border-t border-purple-100 flex items-center justify-between text-[11px]">
                           <span className="text-gray-500 font-medium">
-                            Senha de Acesso: <strong className="text-purple-900 font-black">123456</strong>
+                            Slug: <strong className="text-purple-900 font-mono">/agendar/{item.business.slug}</strong>
                           </span>
-                          <span className="bg-purple-100/80 text-purple-900 font-extrabold px-2 py-0.5 rounded-md text-[10px]">
-                            Painel Isolado 🔒
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.history.pushState({}, '', `/agendar/${item.business.slug}`);
+                              window.location.href = `/agendar/${item.business.slug}`;
+                            }}
+                            className="text-purple-700 hover:text-purple-900 font-bold hover:underline text-[10px] flex items-center space-x-1 cursor-pointer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            <span>Ver Página do Assinante</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1268,15 +1428,11 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingItem(item);
-                          setEditPlan(item.subscription.plan_id || 'professional');
-                          setEditStatus(item.subscription.status || 'ACTIVE');
-                        }}
-                        className="flex-1 py-2.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 cursor-pointer"
+                        onClick={() => handleOpenEditModal(item)}
+                        className="flex-1 py-2.5 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
                       >
-                        <Edit3 className="w-3.5 h-3.5 text-gray-600" />
-                        <span>Editar Plano / Status</span>
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Editar Dados & Logo</span>
                       </button>
 
                       {onSelectBusiness && (
@@ -1289,7 +1445,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                           className={`py-2.5 px-3 rounded-xl text-xs font-extrabold transition flex items-center justify-center space-x-1.5 cursor-pointer shrink-0 ${
                             isCurrentActive
                               ? 'bg-purple-100 text-purple-900 border border-purple-200'
-                              : 'bg-purple-700 hover:bg-purple-800 text-white shadow-xs'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
                           }`}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
@@ -1319,6 +1475,86 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       {/* VIEW MODE 2: MY PLAN & RESOURCES */}
       {viewMode === 'my_plan' && (
         <div className="space-y-6">
+          {/* Store Identity & Public Page Card */}
+          <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+              <div className="flex items-center space-x-3.5">
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 border-2 border-purple-200 flex items-center justify-center shrink-0 overflow-hidden p-1 shadow-inner">
+                  {business.logo_url ? (
+                    <img src={business.logo_url} alt={business.name} className="max-w-full max-h-full object-contain" />
+                  ) : (
+                    <Building2 className="w-7 h-7 text-purple-600" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">{business.name}</h3>
+                  <p className="text-xs text-gray-500 font-medium">
+                    Responsável: <strong>{business.owner_name}</strong> • {business.phone || business.whatsapp || 'Sem telefone'}
+                  </p>
+                  {business.address && (
+                    <p className="text-[11px] text-gray-400 mt-0.5">{business.address}{business.city ? ` - ${business.city}` : ''}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditBizName(business.name || '');
+                  setEditBizOwner(business.owner_name || '');
+                  setEditBizPhone(business.phone || business.whatsapp || '');
+                  setEditBizEmail(business.email || '');
+                  setEditBizSlug(business.slug || '');
+                  setEditBizAddress(business.address || '');
+                  setEditBizCity(business.city || '');
+                  setEditBizLogo(business.logo_url || '');
+                  setIsEditIdentityModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200 rounded-xl text-xs font-black transition flex items-center justify-center space-x-2 shrink-0 cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4 text-purple-700" />
+                <span>Alterar Logo / Dados da Barbearia</span>
+              </button>
+            </div>
+
+            {/* Public Booking Link Banner */}
+            <div className="p-3.5 bg-purple-50/70 border border-purple-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <span className="text-[10px] font-black uppercase text-purple-700 tracking-wider flex items-center space-x-1">
+                  <Globe className="w-3 h-3" />
+                  <span>Link Público de Agendamento dos Seus Clientes</span>
+                </span>
+                <p className="text-xs font-mono font-bold text-gray-800 break-all">
+                  {window.location.origin}/agendar/{business.slug}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/agendar/${business.slug}`);
+                    showToast('Link de agendamento copiado com sucesso!');
+                  }}
+                  className="px-3 py-2 bg-white hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 cursor-pointer shadow-xs"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Link</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.history.pushState({}, '', `/agendar/${business.slug}`);
+                    window.location.href = `/agendar/${business.slug}`;
+                  }}
+                  className="px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Testar Agendamento</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Subscription Summary Card */}
           <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-xs space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-5">
@@ -1633,7 +1869,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
       {/* MODAL 1: CREATE NEW BARBER SHOP */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="font-black text-lg text-gray-900 flex items-center space-x-2">
                 <Building2 className="w-5 h-5 text-purple-600" />
@@ -1649,6 +1885,69 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateBusiness} className="space-y-4">
+              {/* Logo Selection Section */}
+              <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-3">
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wider">
+                  Logo / Imagem da Barbearia
+                </label>
+                
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-2xl bg-white border-2 border-purple-200 flex items-center justify-center shrink-0 overflow-hidden shadow-inner p-1">
+                    {newBizLogo ? (
+                      <img src={newBizLogo} alt="Preview" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <Building2 className="w-8 h-8 text-purple-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <label className="inline-flex items-center space-x-2 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingLogo ? 'Processando imagem...' : 'Escolher Imagem do Logo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isUploadingLogo}
+                        onChange={(e) => handleLogoFileUpload(e, setNewBizLogo)}
+                        className="hidden"
+                      />
+                    </label>
+                    {newBizLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setNewBizLogo('')}
+                        className="block text-[11px] text-rose-600 hover:underline font-bold"
+                      >
+                        Remover logo
+                      </button>
+                    )}
+                    <p className="text-[10px] text-gray-500">JPG, PNG ou WebP com compressão automática.</p>
+                  </div>
+                </div>
+
+                {/* Preset Logos */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Ou escolha um modelo pronto:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_LOGOS.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setNewBizLogo(preset.url)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition flex items-center space-x-1 cursor-pointer ${
+                          newBizLogo === preset.url
+                            ? 'bg-purple-700 text-white border-purple-700'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>✂️</span>
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-extrabold text-gray-700 mb-1">
                   Nome da Barbearia / Salão *
@@ -1658,7 +1957,12 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                   required
                   placeholder="Ex: Barbearia Santos VIP"
                   value={newBizName}
-                  onChange={(e) => setNewBizName(e.target.value)}
+                  onChange={(e) => {
+                    setNewBizName(e.target.value);
+                    if (!newBizSlug) {
+                      setNewBizSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'));
+                    }
+                  }}
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
                 />
               </div>
@@ -1701,6 +2005,52 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                     value={newBizPhone}
                     onChange={(e) => setNewBizPhone(e.target.value)}
                     className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Endereço / Rua
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Av. Paulista, 1000"
+                    value={newBizAddress}
+                    onChange={(e) => setNewBizAddress(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Cidade / UF
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="São Paulo - SP"
+                    value={newBizCity}
+                    onChange={(e) => setNewBizCity(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Slug do Link Público de Agendamento
+                </label>
+                <div className="flex items-center">
+                  <span className="bg-gray-100 border border-r-0 border-gray-200 px-3 py-3 rounded-l-xl text-xs text-gray-500 font-mono">
+                    /agendar/
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="santos-vip"
+                    value={newBizSlug}
+                    onChange={(e) => setNewBizSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                    className="flex-1 p-3 bg-gray-50 border border-gray-200 rounded-r-xl text-xs font-mono font-bold focus:ring-2 focus:ring-purple-500 outline-hidden"
                   />
                 </div>
               </div>
@@ -1760,14 +2110,14 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 2: EDIT SUBSCRIPTION FOR BARBER SHOP */}
+      {/* MODAL 2: EDIT BUSINESS IDENTITY & SUBSCRIPTION */}
       {editingItem && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <div>
                 <h3 className="font-black text-lg text-gray-900">
-                  Alterar Plano & Status
+                  Editar Barbearia & Assinatura
                 </h3>
                 <p className="text-xs text-gray-500 font-medium">
                   {editingItem.business.name} ({editingItem.business.owner_name})
@@ -1783,6 +2133,159 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveEditSubscription} className="space-y-4">
+              {/* Logo Selection Section */}
+              <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-3">
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wider">
+                  Logo / Foto de Perfil da Barbearia
+                </label>
+                
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-2xl bg-white border-2 border-purple-200 flex items-center justify-center shrink-0 overflow-hidden shadow-inner p-1">
+                    {editBizLogo ? (
+                      <img src={editBizLogo} alt="Preview" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <Building2 className="w-8 h-8 text-purple-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <label className="inline-flex items-center space-x-2 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingLogo ? 'Processando imagem...' : 'Alterar Imagem do Logo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isUploadingLogo}
+                        onChange={(e) => handleLogoFileUpload(e, setEditBizLogo)}
+                        className="hidden"
+                      />
+                    </label>
+                    {editBizLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setEditBizLogo('')}
+                        className="block text-[11px] text-rose-600 hover:underline font-bold"
+                      >
+                        Remover logo
+                      </button>
+                    )}
+                    <p className="text-[10px] text-gray-500">Logo exibido no topo da página de agendamentos e painel.</p>
+                  </div>
+                </div>
+
+                {/* Preset Logos */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Ou escolha um modelo pronto:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_LOGOS.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setEditBizLogo(preset.url)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition flex items-center space-x-1 cursor-pointer ${
+                          editBizLogo === preset.url
+                            ? 'bg-purple-700 text-white border-purple-700'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>✂️</span>
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Nome da Barbearia *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editBizName}
+                  onChange={(e) => setEditBizName(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Nome do Dono / Responsável *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editBizOwner}
+                  onChange={(e) => setEditBizOwner(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    WhatsApp Comercial
+                  </label>
+                  <input
+                    type="tel"
+                    value={editBizPhone}
+                    onChange={(e) => setEditBizPhone(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    E-mail do Proprietário
+                  </label>
+                  <input
+                    type="email"
+                    value={editBizEmail}
+                    onChange={(e) => setEditBizEmail(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Endereço
+                  </label>
+                  <input
+                    type="text"
+                    value={editBizAddress}
+                    onChange={(e) => setEditBizAddress(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Cidade / UF
+                  </label>
+                  <input
+                    type="text"
+                    value={editBizCity}
+                    onChange={(e) => setEditBizCity(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Slug do Link Público (/agendar/{editBizSlug})
+                </label>
+                <input
+                  type="text"
+                  value={editBizSlug}
+                  onChange={(e) => setEditBizSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-extrabold text-gray-700 mb-1">
                   Selecione o Plano SaaS
@@ -1867,16 +2370,6 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                 </select>
               </div>
 
-              <div className="p-3 bg-amber-50/90 rounded-2xl border border-amber-200 text-amber-950 space-y-1">
-                <div className="flex items-center space-x-1.5 font-bold text-xs text-amber-900">
-                  <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>Validação de Mês Pago & Anti-Fraude</span>
-                </div>
-                <p className="text-[11px] leading-relaxed text-amber-800">
-                  Para alterar para um plano superior ou downgrade, o mês da assinatura precisa estar confirmado como pago (Ativa). Para migrações para um plano mais barato, os cadastros da barbearia devem respeitar os limites do novo plano.
-                </p>
-              </div>
-
               <div className="pt-3 flex items-center justify-between border-t border-gray-100">
                 <button
                   type="button"
@@ -1908,6 +2401,204 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                     {isSubmitting ? 'Salvando...' : 'Salvar Alterações'}
                   </button>
                 </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: EDIT CURRENT STORE IDENTITY (MY PLAN VIEW) */}
+      {isEditIdentityModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h3 className="font-black text-lg text-gray-900">
+                  Identidade da Barbearia & Logo
+                </h3>
+                <p className="text-xs text-gray-500 font-medium">
+                  {business.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditIdentityModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveIdentityModal} className="space-y-4">
+              {/* Logo Selection Section */}
+              <div className="p-4 bg-purple-50/60 rounded-2xl border border-purple-100 space-y-3">
+                <label className="block text-xs font-black text-purple-950 uppercase tracking-wider">
+                  Logo / Imagem da Barbearia
+                </label>
+                
+                <div className="flex items-center space-x-4">
+                  <div className="w-16 h-16 rounded-2xl bg-white border-2 border-purple-200 flex items-center justify-center shrink-0 overflow-hidden shadow-inner p-1">
+                    {editBizLogo ? (
+                      <img src={editBizLogo} alt="Preview" className="max-w-full max-h-full object-contain" />
+                    ) : (
+                      <Building2 className="w-8 h-8 text-purple-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <label className="inline-flex items-center space-x-2 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer transition">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingLogo ? 'Processando imagem...' : 'Escolher Imagem do Logo'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isUploadingLogo}
+                        onChange={(e) => handleLogoFileUpload(e, setEditBizLogo)}
+                        className="hidden"
+                      />
+                    </label>
+                    {editBizLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setEditBizLogo('')}
+                        className="block text-[11px] text-rose-600 hover:underline font-bold"
+                      >
+                        Remover logo
+                      </button>
+                    )}
+                    <p className="text-[10px] text-gray-500">Aparece na barra lateral e na página de agendamento público.</p>
+                  </div>
+                </div>
+
+                {/* Preset Logos */}
+                <div className="space-y-1 pt-1">
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Ou escolha um modelo pronto:</span>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_LOGOS.map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => setEditBizLogo(preset.url)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition flex items-center space-x-1 cursor-pointer ${
+                          editBizLogo === preset.url
+                            ? 'bg-purple-700 text-white border-purple-700'
+                            : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span>✂️</span>
+                        <span>{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Nome da Barbearia *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editBizName}
+                  onChange={(e) => setEditBizName(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Nome do Dono / Responsável *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editBizOwner}
+                  onChange={(e) => setEditBizOwner(e.target.value)}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    WhatsApp Comercial
+                  </label>
+                  <input
+                    type="tel"
+                    value={editBizPhone}
+                    onChange={(e) => setEditBizPhone(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    E-mail Comercial
+                  </label>
+                  <input
+                    type="email"
+                    value={editBizEmail}
+                    onChange={(e) => setEditBizEmail(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Endereço
+                  </label>
+                  <input
+                    type="text"
+                    value={editBizAddress}
+                    onChange={(e) => setEditBizAddress(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                    Cidade / UF
+                  </label>
+                  <input
+                    type="text"
+                    value={editBizCity}
+                    onChange={(e) => setEditBizCity(e.target.value)}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-extrabold text-gray-700 mb-1">
+                  Slug do Link Público (/agendar/{editBizSlug})
+                </label>
+                <input
+                  type="text"
+                  value={editBizSlug}
+                  onChange={(e) => setEditBizSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-purple-500 outline-hidden"
+                />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end space-x-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditIdentityModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-extrabold shadow-md transition cursor-pointer"
+                >
+                  {isSubmitting ? 'Salvando...' : 'Salvar Identidade'}
+                </button>
               </div>
             </form>
           </div>

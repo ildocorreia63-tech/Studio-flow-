@@ -775,7 +775,7 @@ export class SubscriptionService {
   }
 
   /**
-   * Admin: Register new business with selected plan
+   * Admin: Register new business with selected plan and logo
    */
   static async adminCreateBusinessWithSubscriptionAsync(
     data: {
@@ -785,6 +785,11 @@ export class SubscriptionService {
       phone: string;
       type?: any;
       slug?: string;
+      logo_url?: string;
+      address?: string;
+      city?: string;
+      state?: string;
+      zip_code?: string;
     },
     planId: SaaSPlan = 'professional',
     status: SubscriptionStatus = 'ACTIVE'
@@ -805,12 +810,13 @@ export class SubscriptionService {
       email: data.email,
       phone: data.phone,
       whatsapp: data.phone,
-      address: '',
-      city: '',
-      state: '',
-      zip_code: '',
+      address: data.address || '',
+      city: data.city || '',
+      state: data.state || '',
+      zip_code: data.zip_code || '',
       type: data.type || 'Barbearia',
       slug,
+      logo_url: data.logo_url || '',
       plan: planId,
     });
 
@@ -820,6 +826,7 @@ export class SubscriptionService {
       name: data.owner_name,
       email: data.email || `dono-${createdBiz.id}@studioflow.app`,
       role: 'OWNER',
+      phone: data.phone,
     });
 
     const sub = await SubscriptionService.adminUpdateSubscriptionAsync(
@@ -829,6 +836,31 @@ export class SubscriptionService {
     );
 
     return { business: createdBiz, subscription: sub };
+  }
+
+  /**
+   * Admin: Full update of subscriber business (logo, name, phone, email, slug, plan, status)
+   */
+  static async adminUpdateBusinessFullAsync(
+    businessId: string,
+    businessUpdates: Partial<Business>,
+    planId: SaaSPlan,
+    status: SubscriptionStatus
+  ): Promise<{ business: Business; subscription: CompanySubscription }> {
+    if (!businessId) throw new Error('business_id é obrigatório.');
+
+    const updatedBiz = DB.updateBusiness(businessId, {
+      ...businessUpdates,
+      plan: planId,
+    });
+
+    const updatedSub = await SubscriptionService.adminUpdateSubscriptionAsync(
+      businessId,
+      planId,
+      status
+    );
+
+    return { business: updatedBiz, subscription: updatedSub };
   }
 
   /**

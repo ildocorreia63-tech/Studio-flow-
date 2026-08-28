@@ -45,13 +45,53 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
   const [whatsappUrl, setWhatsappUrl] = useState('');
 
   useEffect(() => {
-    const biz = DB.getBusinessBySlug(businessSlug) || DB.getBusinesses()[0];
-    if (biz) {
-      setBusiness(biz);
-      setServices(DB.getServices(biz.id).filter((s) => s.active));
-      setProfessionals(DB.getProfessionals(biz.id).filter((p) => p.status === 'active'));
-      PwaService.updateDynamicAppManifest(biz);
-    }
+    let isMounted = true;
+    const loadBusinessData = async () => {
+      try {
+        await DB.getBusinessesAsync();
+      } catch (err) {
+        console.warn('Error loading businesses asynchronously:', err);
+      }
+
+      if (!isMounted) return;
+
+      const businesses = DB.getBusinesses();
+      const biz =
+        DB.getBusinessBySlug(businessSlug) ||
+        DB.getBusinessById(businessSlug) ||
+        businesses.find((b) => b.slug?.toLowerCase() === businessSlug?.toLowerCase()) ||
+        businesses[0];
+
+      if (biz && isMounted) {
+        setBusiness(biz);
+        const activeServices = DB.getServices(biz.id).filter((s) => s.active);
+        const activeProfs = DB.getProfessionals(biz.id).filter((p) => p.status === 'active');
+        
+        // If the business has no services yet, auto-seed default services for this business
+        if (activeServices.length === 0) {
+          const seeded = DB.getServices(biz.id);
+          setServices(seeded);
+        } else {
+          setServices(activeServices);
+        }
+
+        // If the business has no professionals yet, auto-seed default professional
+        if (activeProfs.length === 0) {
+          const seededProfs = DB.getProfessionals(biz.id);
+          setProfessionals(seededProfs);
+        } else {
+          setProfessionals(activeProfs);
+        }
+
+        PwaService.updateDynamicAppManifest(biz);
+      }
+    };
+
+    loadBusinessData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [businessSlug]);
 
   // Recalculate available slots whenever Service, Professional, or Date changes
@@ -205,13 +245,20 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
             </button>
           )}
 
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-black border-2 border-purple-400/80 shadow-2xl mx-auto flex items-center justify-center mb-3.5 overflow-hidden p-1 relative group">
-            <img
-              src={business.logo_url || '/studioflow-logo.png'}
-              alt={business.name}
-              className="max-w-full max-h-full object-cover rounded-xl"
-              referrerPolicy="no-referrer"
-            />
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-black border-2 border-purple-400/80 shadow-2xl mx-auto flex items-center justify-center mb-3.5 overflow-hidden p-2 relative group">
+            {business.logo_url ? (
+              <img
+                src={business.logo_url}
+                alt={business.name}
+                className="max-w-full max-h-full object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center text-purple-300">
+                <Building className="w-10 h-10 mb-0.5" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-center line-clamp-1">{business.name.slice(0, 3)}</span>
+              </div>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white drop-shadow-sm">{business.name}</h1>
           <p className="text-xs sm:text-sm text-purple-200 mt-1 font-medium">{business.address} — {business.city}/{business.state}</p>
