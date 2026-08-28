@@ -238,10 +238,10 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
           {onBackToApp && (
             <button
               onClick={onBackToApp}
-              className="absolute left-4 top-4 text-purple-200 hover:text-white bg-purple-800/40 p-2 rounded-xl text-xs flex items-center gap-1 transition"
+              className="absolute left-4 top-4 text-purple-100 hover:text-white bg-purple-800/60 hover:bg-purple-700/80 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-purple-600/50 shadow-xs cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Painel</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Acessar Painel / App</span>
             </button>
           )}
 

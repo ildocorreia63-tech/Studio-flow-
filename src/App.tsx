@@ -48,38 +48,49 @@ export function App() {
   // Helper to parse current URL route for public booking and public plans pages
   const parseRoute = () => {
     if (typeof window === 'undefined') {
-      return { isPlans: false, isBooking: false, bookingSlug: 'studioflow-demo' };
+      return { isPlans: false, isBooking: false, bookingSlug: '' };
     }
     const path = window.location.pathname.toLowerCase();
     const search = window.location.search.toLowerCase();
     const hash = window.location.hash.toLowerCase();
 
     const isPlans =
-      path.includes('/planos') ||
-      path.includes('/assinar') ||
-      path.includes('/planos-saas') ||
-      path.includes('/precos') ||
-      path.includes('/pricing') ||
-      path.includes('/subscription') ||
+      path === '/planos' ||
+      path.startsWith('/planos/') ||
+      path === '/assinar' ||
+      path.startsWith('/assinar/') ||
+      path === '/precos' ||
+      path.startsWith('/precos/') ||
       search.includes('planos=true') ||
       search.includes('page=planos') ||
       search.includes('tab=planos') ||
-      search.includes('view=planos') ||
-      hash.includes('planos') ||
-      hash.includes('assinar');
+      hash.startsWith('#/planos') ||
+      hash.startsWith('#/assinar');
 
-    let isBooking = path.includes('/agendar') || search.includes('agendar=') || hash.includes('/agendar');
-    let bookingSlug = 'studioflow-demo';
+    let isBooking = false;
+    let bookingSlug = '';
 
-    if (path.includes('/agendar')) {
-      const rawSlug = window.location.pathname.split('/agendar')[1]?.replace(/^\//, '') || '';
-      bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
+    if (path.startsWith('/agendar')) {
+      const rawSlug = window.location.pathname.replace(/^\/agendar\/?/, '').trim();
+      const cleanSlug = rawSlug.split('/')[0].split('?')[0].trim();
+      if (cleanSlug) {
+        isBooking = true;
+        bookingSlug = cleanSlug;
+      }
     } else if (search.includes('agendar=')) {
       const params = new URLSearchParams(window.location.search);
-      bookingSlug = params.get('agendar') || 'studioflow-demo';
-    } else if (hash.includes('/agendar')) {
-      const rawSlug = window.location.hash.split('/agendar')[1]?.replace(/^\//, '') || '';
-      bookingSlug = rawSlug.split('/')[0].split('?')[0].trim() || 'studioflow-demo';
+      const agendarVal = params.get('agendar')?.trim();
+      if (agendarVal && agendarVal !== 'false') {
+        isBooking = true;
+        bookingSlug = agendarVal;
+      }
+    } else if (hash.startsWith('#/agendar')) {
+      const rawSlug = window.location.hash.replace(/^#\/agendar\/?/, '').trim();
+      const cleanSlug = rawSlug.split('/')[0].split('?')[0].trim();
+      if (cleanSlug) {
+        isBooking = true;
+        bookingSlug = cleanSlug;
+      }
     }
 
     return { isPlans, isBooking, bookingSlug };
@@ -91,12 +102,9 @@ export function App() {
   const isLoggedOutSaved = typeof window !== 'undefined' && localStorage.getItem('sf_logged_out') === 'true';
   const hasAccountSaved = typeof window !== 'undefined' && localStorage.getItem('sf_has_account') === 'true';
   const hasSessionSaved = typeof window !== 'undefined' && Boolean(localStorage.getItem('sf_session_user_id'));
-  
-  // A brand new visitor has no active session, has never registered an account and has not logged out
-  const isNewVisitor = !initialRoute.isBooking && !hasSessionSaved && !hasAccountSaved && !isLoggedOutSaved;
 
   const [isPublicMode, setIsPublicMode] = useState(initialRoute.isBooking);
-  const [isPublicPlansMode, setIsPublicPlansMode] = useState(initialRoute.isPlans || isNewVisitor);
+  const [isPublicPlansMode, setIsPublicPlansMode] = useState(initialRoute.isPlans);
   const [slugFromPath, setSlugFromPath] = useState(initialRoute.bookingSlug);
 
   // App Auth & Business state
@@ -316,8 +324,14 @@ export function App() {
         return;
       }
 
-      // 4. Brand new user/visitor -> Show Public Subscription Landing Page (Frontpage)
-      setIsPublicPlansMode(true);
+      // 4. If not logged in and not on plans route -> Open Subscriber Login Modal directly
+      if (initialRoute.isPlans) {
+        setIsPublicPlansMode(true);
+        setIsAuthOpen(false);
+      } else {
+        setIsPublicPlansMode(false);
+        setIsAuthOpen(true);
+      }
     }
 
     loadInitialSession();
