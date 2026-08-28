@@ -158,6 +158,28 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             phone: whatsapp,
           };
 
+          // Also mirror and dual-persist locally so it never disappears offline or upon logout/reload
+          try {
+            const allBiz = DB.getBusinesses();
+            if (!allBiz.some((b) => b.id === createdBiz.id)) {
+              allBiz.push(createdBiz);
+              localStorage.setItem('sf_businesses', JSON.stringify(allBiz));
+            }
+            const allProfiles = DB.getProfiles(createdBiz.id);
+            if (!allProfiles.some((p) => p.id === ownerObj.id)) {
+              DB.createProfile({
+                business_id: createdBiz.id,
+                name: ownerName,
+                email,
+                role: 'OWNER',
+                phone: whatsapp,
+              });
+            }
+            DB.syncSubscribersToVault();
+          } catch (e) {
+            console.warn('Local mirror error:', e);
+          }
+
           // Disparar confirmação e boas-vindas no WhatsApp do Dono
           const bookingUrl = getPublicBookingUrl(createdBiz.slug || slug);
           const planName = PLANS[selectedPlan]?.name || 'Profissional';
