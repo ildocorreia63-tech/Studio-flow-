@@ -929,6 +929,95 @@ export class DB {
     return this.updateProfile(profileId, { theme_preference: theme });
   }
 
+  static lookupAccountByEmail(email: string): { user?: UserProfile; business?: Business } | null {
+    if (!email) return null;
+    const normalized = email.toLowerCase().trim();
+    const businesses = DB.getBusinesses();
+    const profiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+
+    let targetProfile = profiles.find((p) => p.email && p.email.toLowerCase().trim() === normalized);
+    let targetBiz = businesses.find((b) => b.email && b.email.toLowerCase().trim() === normalized);
+
+    if (!targetProfile && targetBiz) {
+      const bizProfiles = DB.getProfiles(targetBiz.id);
+      targetProfile = bizProfiles[0];
+    }
+    if (targetProfile && !targetBiz) {
+      targetBiz = businesses.find((b) => b.id === targetProfile?.business_id);
+    }
+
+    const isMaster = normalized === 'admin@studioflow.app' || normalized === '1980burguer@gmail.com';
+    if (isMaster && !targetBiz && businesses.length > 0) {
+      targetBiz = businesses[0];
+    }
+
+    if (targetBiz || targetProfile) {
+      return { user: targetProfile, business: targetBiz };
+    }
+    return null;
+  }
+
+  static resetPasswordByEmail(
+    email: string,
+    newPassword: string
+  ): { success: boolean; message: string; user?: UserProfile; business?: Business } {
+    if (!email || !newPassword) {
+      return { success: false, message: 'Informe o e-mail e a nova senha.' };
+    }
+    const normalized = email.toLowerCase().trim();
+    const businesses = DB.getBusinesses();
+    const profiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+
+    let targetProfile = profiles.find((p) => p.email && p.email.toLowerCase().trim() === normalized);
+    let targetBiz = businesses.find((b) => b.email && b.email.toLowerCase().trim() === normalized);
+
+    if (!targetProfile && targetBiz) {
+      const bizProfs = DB.getProfiles(targetBiz.id);
+      targetProfile = bizProfs[0];
+    }
+    if (targetProfile && !targetBiz) {
+      targetBiz = businesses.find((b) => b.id === targetProfile?.business_id);
+    }
+
+    const isMaster = normalized === 'admin@studioflow.app' || normalized === '1980burguer@gmail.com';
+    if (isMaster && !targetBiz && businesses.length > 0) {
+      targetBiz = businesses[0];
+    }
+
+    if (!targetProfile && targetBiz) {
+      targetProfile = {
+        id: 'usr-' + targetBiz.id,
+        business_id: targetBiz.id,
+        name: targetBiz.owner_name || targetBiz.name,
+        email: normalized,
+        password: newPassword,
+        role: isMaster ? 'SUPER_ADMIN' : 'OWNER',
+        created_at: new Date().toISOString(),
+      };
+      profiles.push(targetProfile);
+      saveStorage(STORAGE_KEYS.PROFILES, profiles);
+    } else if (targetProfile) {
+      const idx = profiles.findIndex((p) => p.id === targetProfile!.id);
+      if (idx !== -1) {
+        profiles[idx] = { ...profiles[idx], password: newPassword };
+        targetProfile = profiles[idx];
+        saveStorage(STORAGE_KEYS.PROFILES, profiles);
+      }
+    } else {
+      return {
+        success: false,
+        message: 'Nenhuma conta encontrada para o e-mail informado. Verifique o e-mail digitado.',
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Senha alterada com sucesso! Você já pode entrar com sua nova senha.',
+      user: targetProfile,
+      business: targetBiz,
+    };
+  }
+
   // --- Professionals ---
   static getProfessionals(businessId: string): Professional[] {
     const all = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, initialProfessionals);

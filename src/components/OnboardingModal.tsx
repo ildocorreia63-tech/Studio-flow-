@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircle, ShieldCheck, Zap, X } from 'lucide-react';
+import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircle, ShieldCheck, Zap, X, Lock, Eye, EyeOff } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, BusinessType, UserProfile, SaaSPlan } from '../types';
@@ -29,6 +29,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [address, setAddress] = useState('');
@@ -50,8 +51,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   const handleNextStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
-    if (!businessName || !ownerName || !email || !whatsapp) {
-      setErrorMsg('Preencha os campos obrigatórios (*).');
+    if (!businessName.trim() || !ownerName.trim() || !email.trim() || !whatsapp.trim() || !password.trim()) {
+      setErrorMsg('Preencha todos os campos obrigatórios (*), incluindo a sua senha de acesso.');
+      return;
+    }
+    if (password.length < 6) {
+      setErrorMsg('A senha de acesso deve ter no mínimo 6 caracteres.');
       return;
     }
     setStep(2);
@@ -195,6 +200,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 business_id: createdBiz.id,
                 name: ownerName,
                 email,
+                password: password.trim(),
                 role: 'OWNER',
                 phone: whatsapp,
               });
@@ -262,6 +268,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         business_id: createdBiz.id,
         name: ownerName,
         email,
+        password: password.trim(),
         role: 'OWNER',
         phone: whatsapp,
       });
@@ -451,6 +458,55 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                   />
                   <p className="text-[10px] text-gray-500 mt-1">A confirmação e comprovante serão enviados neste WhatsApp.</p>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Criar Senha de Acesso *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[11px] font-semibold text-purple-700 hover:text-purple-900 flex items-center space-x-1 cursor-pointer transition"
+                      title={showPassword ? 'Ocultar senha' : 'Ver senha enquanto digita'}
+                    >
+                      {showPassword ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Ocultar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver senha</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      placeholder="Mínimo 6 dígitos (ex: senha123)"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-9 pr-10 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-700 cursor-pointer"
+                      title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">Usada para fazer login no painel com o seu e-mail.</p>
                 </div>
               </div>
 

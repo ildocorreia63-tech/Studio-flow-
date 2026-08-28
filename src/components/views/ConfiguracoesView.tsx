@@ -3,7 +3,7 @@ import {
   Settings, Save, RefreshCw, Check, AlertTriangle, Scissors, UserCheck, Globe, Upload,
   Image as ImageIcon, Link as LinkIcon, Trash2, Sparkles, Building, Crown, X, Smartphone,
   Share, MoreVertical, PlusSquare, Monitor, Bell, CheckCircle2, Copy, ExternalLink, AlertCircle,
-  Sun, Moon, Palette, CreditCard, Building2
+  Sun, Moon, Palette, CreditCard, Building2, Lock, Eye, EyeOff, KeyRound, ShieldCheck
 } from 'lucide-react';
 import { DB } from '../../services/db';
 import { Business, ActiveTab, UserProfile } from '../../types';
@@ -50,6 +50,13 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Password & Security State
+  const [accountEmail, setAccountEmail] = useState(currentUser?.email || business.email || '');
+  const [accountPassword, setAccountPassword] = useState(currentUser?.password || '123456');
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordSavedSuccess, setPasswordSavedSuccess] = useState(false);
 
   // Modals state
   const [showNotificationModal, setShowNotificationModal] = useState(false);
@@ -209,6 +216,31 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleSavePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountPassword || accountPassword.length < 6) {
+      triggerToast('⚠️ A senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    setIsSavingPassword(true);
+    setTimeout(() => {
+      try {
+        const emailToUpdate = accountEmail || currentUser?.email || business.email;
+        DB.resetPasswordByEmail(emailToUpdate, accountPassword);
+        if (currentUser?.id) {
+          DB.updateProfile(currentUser.id, { password: accountPassword });
+        }
+        setIsSavingPassword(false);
+        setPasswordSavedSuccess(true);
+        triggerToast('✅ Senha de acesso atualizada com sucesso!');
+        setTimeout(() => setPasswordSavedSuccess(false), 4000);
+      } catch (err) {
+        setIsSavingPassword(false);
+        triggerToast('⚠️ Erro ao atualizar senha.');
+      }
+    }, 250);
   };
 
   return (
@@ -670,6 +702,117 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
           </div>
         </div>
       </form>
+
+      {/* Access Credentials & Password Management Card */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-200/80 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 rounded-xl">
+              <KeyRound className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-gray-900 dark:text-white">Credenciais de Acesso & Senha</h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                Gerencie o e-mail e a senha utilizada para fazer login e administrar seu painel.
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-full text-[10px] font-black uppercase flex items-center space-x-1">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Segurança Ativa</span>
+          </span>
+        </div>
+
+        <form onSubmit={handleSavePassword} className="space-y-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold uppercase mb-1 text-gray-700 dark:text-slate-300">
+                E-mail de Login Cadastrado
+              </label>
+              <input
+                type="email"
+                readOnly
+                value={accountEmail}
+                className="w-full p-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-xs bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-300 outline-hidden cursor-not-allowed font-medium"
+              />
+              <p className="text-[10px] text-gray-400 mt-1">E-mail vinculado ao acesso da sua empresa.</p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold uppercase text-gray-700 dark:text-slate-300">
+                  Senha de Acesso ao Painel *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAccountPassword(!showAccountPassword)}
+                  className="text-[11px] font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                >
+                  {showAccountPassword ? (
+                    <>
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Ocultar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Ver senha</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="relative">
+                <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                <input
+                  type={showAccountPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={accountPassword}
+                  onChange={(e) => setAccountPassword(e.target.value)}
+                  className="w-full pl-9 pr-10 p-2.5 border border-gray-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500/50 outline-hidden font-medium"
+                  placeholder="Mínimo 6 dígitos (ex: minhaSenha123)"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAccountPassword(!showAccountPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  {showAccountPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">Altere sua senha a qualquer momento e clique em salvar.</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={isSavingPassword}
+              className="px-6 py-2.5 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center space-x-2 cursor-pointer"
+            >
+              {isSavingPassword ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Salvando Senha...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Salvar Nova Senha</span>
+                </>
+              )}
+            </button>
+
+            {passwordSavedSuccess && (
+              <span className="text-xs font-bold text-emerald-600 flex items-center space-x-1">
+                <Check className="w-4 h-4" />
+                <span>Senha salva com sucesso!</span>
+              </span>
+            )}
+          </div>
+        </form>
+      </div>
 
       {/* PWA & Notification Settings */}
       <div className="bg-white p-6 rounded-3xl border border-gray-200/80 shadow-xs space-y-4">

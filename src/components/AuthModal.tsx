@@ -1,9 +1,27 @@
 import React, { useState } from 'react';
-import { Mail, Lock, UserPlus, LogIn, AlertCircle, X, Globe } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  UserPlus,
+  LogIn,
+  AlertCircle,
+  X,
+  Globe,
+  Eye,
+  EyeOff,
+  KeyRound,
+  CheckCircle2,
+  Phone,
+  MessageSquare,
+  Sparkles,
+  ArrowLeft,
+  Send
+} from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, UserProfile } from '../types';
 import { StudioFlowLogo } from './StudioFlowLogo';
+import { buildWhatsAppLink } from '../utils/whatsapp';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -22,16 +40,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Forgot password & Direct Reset states
   const [isForgotPass, setIsForgotPass] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetMethod, setResetMethod] = useState<'instant' | 'whatsapp' | 'email'>('instant');
+  const [updatedUserBiz, setUpdatedUserBiz] = useState<{ user?: UserProfile; business?: Business } | null>(null);
 
   if (!isOpen) return null;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+    setSuccessMsg('');
     setLoading(true);
 
     try {
@@ -127,9 +156,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
 
       if (targetBiz && matchedProfile) {
+        if (matchedProfile.password && password && matchedProfile.password !== password) {
+          setErrorMsg('Senha incorreta. Verifique a senha digitada ou clique em "ESQUECI SENHA" para redefinir na hora.');
+          return;
+        }
         onLoginSuccess(matchedProfile, targetBiz);
       } else {
-        setErrorMsg('E-mail não cadastrado. Verifique o e-mail digitado ou crie uma nova conta em "Criar Conta & Onboarding".');
+        setErrorMsg('E-mail não cadastrado. Verifique o e-mail digitado ou crie uma nova conta em "Criar Conta & Testar Grátis".');
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar login.');
@@ -138,24 +171,90 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleForgotPass = async (e: React.FormEvent) => {
+  const handleInstantPasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) {
-      setErrorMsg('Informe seu e-mail para recuperar a senha.');
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!email.trim()) {
+      setErrorMsg('Informe o seu e-mail cadastrado.');
+      return;
+    }
+    if (!newPassword.trim()) {
+      setErrorMsg('Digite a sua nova senha.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setErrorMsg('A nova senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErrorMsg('A confirmação de senha não confere com a nova senha digitada.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1. Reset in local database & profiles
+      const res = DB.resetPasswordByEmail(email, newPassword);
+
+      if (!res.success) {
+        setErrorMsg(res.message);
+        setLoading(false);
+        return;
+      }
+
+      // 2. If Supabase configured, attempt sync
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.auth.updateUser({ password: newPassword });
+        } catch (supaErr) {
+          console.warn('Supabase password sync note:', supaErr);
+        }
+      }
+
+      setPassword(newPassword);
+      setUpdatedUserBiz({ user: res.user, business: res.business });
+      setResetSuccess(true);
+      setSuccessMsg('Senha alterada com sucesso! Você já pode acessar seu painel.');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Erro ao redefinir a senha.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendEmailReset = async () => {
+    if (!email.trim()) {
+      setErrorMsg('Informe seu e-mail para solicitar o envio.');
       return;
     }
     setLoading(true);
+    setErrorMsg('');
     try {
       if (isSupabaseConfigured) {
         await supabase.auth.resetPasswordForEmail(email);
       }
-      setResetSuccess(true);
-      setErrorMsg('');
+      setSuccessMsg(`Solicitação enviada para ${email}. Se não receber o e-mail em instantes, use a Redefinição Instantânea acima para alterar agora sem depender de e-mail.`);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erro ao solicitar recuperação de senha.');
+      setErrorMsg(err.message || 'Não foi possível disparar o e-mail automático.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleWhatsAppRecovery = () => {
+    if (!email.trim()) {
+      setErrorMsg('Informe seu e-mail para localizar os dados de recuperação.');
+      return;
+    }
+    const acc = DB.lookupAccountByEmail(email);
+    const targetPhone = acc?.business?.whatsapp || acc?.business?.phone || acc?.user?.phone || '';
+    const bizName = acc?.business?.name || 'sua barbearia';
+    const message = `Olá! Preciso de ajuda para acessar o painel StudioFlow da empresa *${bizName}* (E-mail: ${email}). Poderia me ajudar com o acesso?`;
+
+    const link = buildWhatsAppLink(targetPhone, message);
+    window.open(link, '_blank');
   };
 
   return (
@@ -167,7 +266,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-900/60 hover:bg-purple-800 text-purple-200 flex items-center justify-center transition border border-purple-700/50"
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-purple-900/60 hover:bg-purple-800 text-purple-200 flex items-center justify-center transition border border-purple-700/50 cursor-pointer"
               title="Fechar"
             >
               <X className="w-4 h-4" />
@@ -190,62 +289,229 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
+          {successMsg && !resetSuccess && (
+            <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold rounded-xl flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
           {resetSuccess ? (
-            <div className="text-center py-4 space-y-3">
-              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
+            <div className="text-center py-4 space-y-4">
+              <div className="w-14 h-14 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
                 ✓
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Link enviado!</h3>
-              <p className="text-xs text-gray-600 dark:text-slate-300">
-                Enviamos as instruções de recuperação de senha para <strong>{email}</strong>.
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setResetSuccess(false);
-                  setIsForgotPass(false);
-                }}
-                className="mt-2 text-xs font-bold text-purple-700 dark:text-purple-400 hover:underline"
-              >
-                Voltar para o Login
-              </button>
-            </div>
-          ) : isForgotPass ? (
-            <form onSubmit={handleForgotPass} className="space-y-4">
-              <h3 className="text-base font-bold text-gray-900 dark:text-white text-center">Recuperação de Senha</h3>
-              <p className="text-xs text-gray-500 dark:text-slate-400 text-center">Digite seu e-mail para receber o link de redefinição.</p>
-
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-1">E-mail</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
-                    placeholder="seu@email.com"
-                  />
-                </div>
+                <h3 className="text-lg font-extrabold text-gray-900 dark:text-white">Senha Atualizada com Sucesso!</h3>
+                <p className="text-xs text-gray-600 dark:text-slate-300 mt-1">
+                  A nova senha para o e-mail <strong>{email}</strong> foi gravada.
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-md text-sm transition flex items-center justify-center space-x-2"
-              >
-                {loading ? <span>Enviando...</span> : <span>RECUPERAR SENHA</span>}
-              </button>
+              <div className="p-3.5 bg-purple-50 dark:bg-slate-800/80 rounded-2xl border border-purple-100 dark:border-slate-700 text-left space-y-1">
+                <p className="text-[11px] font-bold text-purple-900 dark:text-purple-300 uppercase tracking-wider">Suas Novas Credenciais:</p>
+                <p className="text-xs text-gray-700 dark:text-slate-300"><strong>E-mail:</strong> {email}</p>
+                <p className="text-xs text-gray-700 dark:text-slate-300"><strong>Senha:</strong> {newPassword}</p>
+              </div>
 
-              <button
-                type="button"
-                onClick={() => setIsForgotPass(false)}
-                className="w-full text-xs font-bold text-gray-600 dark:text-slate-400 hover:underline text-center block pt-2"
-              >
-                Voltar ao Login
-              </button>
-            </form>
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (updatedUserBiz?.user && updatedUserBiz?.business) {
+                      onLoginSuccess(updatedUserBiz.user, updatedUserBiz.business);
+                    } else {
+                      setResetSuccess(false);
+                      setIsForgotPass(false);
+                    }
+                  }}
+                  className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-lg text-xs tracking-wider uppercase transition flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Entrar no Painel Agora</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetSuccess(false);
+                    setIsForgotPass(false);
+                  }}
+                  className="w-full text-xs font-semibold text-gray-500 dark:text-slate-400 hover:text-purple-700 dark:hover:text-purple-400 hover:underline pt-1"
+                >
+                  Voltar à tela de login
+                </button>
+              </div>
+            </div>
+          ) : isForgotPass ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <KeyRound className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <h3 className="text-sm font-extrabold text-gray-900 dark:text-white">Recuperação de Senha</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPass(false);
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                  }}
+                  className="text-xs font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Voltar</span>
+                </button>
+              </div>
+
+              {/* Notice explaining why instant reset is guaranteed */}
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl text-[11px] text-amber-900 dark:text-amber-200">
+                <span className="font-bold">⚡ Não precisa esperar pelo e-mail:</span> Defina a sua nova senha diretamente no formulário abaixo para entrar na hora.
+              </div>
+
+              <form onSubmit={handleInstantPasswordReset} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    E-mail Cadastrado *
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
+                      Nova Senha *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="text-[11px] font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                      title={showNewPassword ? 'Ocultar senha' : 'Ver senha enquanto digita'}
+                    >
+                      {showNewPassword ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Ocultar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver senha</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full pl-9 pr-10 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                      placeholder="Mínimo 6 dígitos (ex: novaSenha123)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">
+                      Confirmar Nova Senha *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="text-[11px] font-semibold text-purple-700 dark:text-purple-400 hover:underline flex items-center space-x-1 cursor-pointer"
+                    >
+                      {showConfirmPassword ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Ocultar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver senha</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-9 pr-10 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                      placeholder="Repita a nova senha"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-purple-700 hover:bg-purple-800 text-white font-extrabold py-3 rounded-xl shadow-lg shadow-purple-900/30 text-xs uppercase tracking-wider transition flex items-center justify-center space-x-2 cursor-pointer mt-2"
+                >
+                  <KeyRound className="w-4 h-4" />
+                  <span>{loading ? 'Salvando...' : 'REDEFINIR SENHA & ENTRAR'}</span>
+                </button>
+              </form>
+
+              {/* Alternative recovery options */}
+              <div className="pt-3 border-t border-gray-100 dark:border-slate-800 space-y-2">
+                <p className="text-[11px] text-gray-500 dark:text-slate-400 font-semibold text-center">
+                  Outras opções de recuperação:
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleWhatsAppRecovery}
+                    className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 rounded-xl text-emerald-900 dark:text-emerald-300 text-[11px] font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Via WhatsApp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSendEmailReset}
+                    className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700 rounded-xl text-gray-700 dark:text-slate-300 text-[11px] font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Tentar E-mail</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -266,24 +532,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-xs font-bold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Senha</label>
-                  <button
-                    type="button"
-                    onClick={() => setIsForgotPass(true)}
-                    className="text-[11px] text-purple-700 dark:text-purple-400 hover:underline font-semibold"
-                  >
-                    ESQUECI MINHA SENHA
-                  </button>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[11px] text-purple-700 dark:text-purple-400 hover:underline font-semibold flex items-center space-x-1 cursor-pointer"
+                      title={showPassword ? 'Ocultar senha' : 'Ver senha enquanto digita'}
+                    >
+                      {showPassword ? (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Ocultar</span>
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver senha</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPass(true);
+                        setErrorMsg('');
+                        setSuccessMsg('');
+                      }}
+                      className="text-[11px] text-purple-700 dark:text-purple-400 hover:underline font-bold"
+                    >
+                      ESQUECI SENHA
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full pl-9 pr-10 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer"
+                    title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

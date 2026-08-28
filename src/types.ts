@@ -123,6 +123,7 @@ export interface UserProfile {
   business_id: string;
   name: string;
   email: string;
+  password?: string;
   role: UserRole;
   phone?: string;
   avatar_url?: string;
