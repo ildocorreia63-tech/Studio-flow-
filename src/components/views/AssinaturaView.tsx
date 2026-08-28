@@ -539,6 +539,24 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
     e.target.value = '';
   };
 
+  const [syncingStripeProducts, setSyncingStripeProducts] = useState(false);
+
+  const handleSyncStripeProducts = async () => {
+    setSyncingStripeProducts(true);
+    try {
+      const res = await StripeService.syncProductsToStripe();
+      if (res.success) {
+        showToast('🚀 ' + res.message);
+      } else {
+        alert(res.message || 'Erro ao sincronizar produtos no Stripe.');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Falha na comunicação com o servidor.');
+    } finally {
+      setSyncingStripeProducts(false);
+    }
+  };
+
   const handleForceSyncVault = async () => {
     try {
       DB.syncSubscribersToVault();
@@ -902,7 +920,20 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center space-x-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {stripeConfig?.configured && (
+                  <button
+                    type="button"
+                    onClick={handleSyncStripeProducts}
+                    disabled={syncingStripeProducts}
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold shadow-sm transition flex items-center space-x-1.5 cursor-pointer"
+                    title="Cadastrar os planos automaticamente na aba Produtos do Stripe"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingStripeProducts ? 'animate-spin' : ''}`} />
+                    <span>{syncingStripeProducts ? 'Cadastrando no Stripe...' : 'Cadastrar Planos no Stripe'}</span>
+                  </button>
+                )}
+
                 <a
                   href="https://dashboard.stripe.com"
                   target="_blank"

@@ -59,6 +59,85 @@ async function startServer() {
     });
   });
 
+  // Sync/Register Catalog Products directly into Stripe Dashboard
+  app.post('/api/stripe/sync-products', async (req, res) => {
+    try {
+      const stripe = getStripe();
+      if (!stripe) {
+        return res.status(400).json({
+          success: false,
+          error: 'STRIPE_NOT_CONFIGURED',
+          message: 'STRIPE_SECRET_KEY não está configurada no servidor.',
+        });
+      }
+
+      const createdProducts: any[] = [];
+
+      for (const [planKey, plan] of Object.entries(PLAN_PRICES)) {
+        // Search if product already exists
+        const search = await stripe.products.search({
+          query: `metadata['planKey']:'${planKey}'`,
+        }).catch(() => ({ data: [] }));
+
+        let product = search.data?.[0];
+
+        if (!product) {
+          // Create product in Stripe Catalog
+          product = await stripe.products.create({
+            name: `StudioFlow - Plano ${plan.name}`,
+            description: plan.description,
+            metadata: {
+              planKey,
+              app: 'StudioFlow SaaS',
+            },
+          });
+        }
+
+        // Create recurring monthly price if not existing
+        const existingPrices = await stripe.prices.list({
+          product: product.id,
+          active: true,
+        });
+
+        let price = existingPrices.data?.[0];
+        if (!price) {
+          price = await stripe.prices.create({
+            product: product.id,
+            unit_amount: plan.amountCents,
+            currency: 'brl',
+            recurring: {
+              interval: 'month',
+            },
+            metadata: {
+              planKey,
+            },
+          });
+        }
+
+        createdProducts.push({
+          planKey,
+          productId: product.id,
+          productName: product.name,
+          priceId: price.id,
+          amountFormatted: `R$ ${(plan.amountCents / 100).toFixed(2).replace('.', ',')}`,
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Todos os 3 planos do StudioFlow foram sincronizados e cadastrados com sucesso no seu catálogo de Produtos do Stripe!',
+        products: createdProducts,
+      });
+    } catch (err: any) {
+      console.error('Error syncing products to Stripe:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'STRIPE_SYNC_ERROR',
+        message: err.message || 'Erro ao cadastrar produtos no Stripe.',
+      });
+    }
+  });
+
   // Create Stripe Checkout Session endpoint
   app.post('/api/stripe/create-checkout-session', async (req, res) => {
     try {

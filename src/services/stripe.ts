@@ -85,6 +85,28 @@ export class StripeService {
   }
 
   /**
+   * Automatically create or sync the 3 plans as Products & Prices directly in Stripe Catalog
+   */
+  static async syncProductsToStripe(): Promise<{
+    success: boolean;
+    message: string;
+    products?: any[];
+  }> {
+    try {
+      const res = await fetch('/api/stripe/sync-products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return await res.json();
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'Erro ao sincronizar catálogo com o Stripe.',
+      };
+    }
+  }
+
+  /**
    * Verify completed Stripe checkout session
    */
   static async verifySessionAsync(
