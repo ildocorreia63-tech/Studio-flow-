@@ -664,6 +664,31 @@ export class DB {
     });
     saveStorage(STORAGE_KEYS.CASH_REGISTERS, currentRegisters);
 
+    // 6. Initialize Subscription record for new business
+    const rawSubs = localStorage.getItem(STORAGE_KEYS.SUBSCRIPTIONS);
+    const subsList = rawSubs ? JSON.parse(rawSubs) : [];
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const existingSubIdx = subsList.findIndex((s: any) => s.business_id === id);
+    const newSub = {
+      id: `sub-${id}`,
+      business_id: id,
+      plan_id: data.plan || 'professional',
+      status: data.plan === 'premium' ? 'ACTIVE' : 'TRIAL',
+      started_at: now.toISOString(),
+      expires_at: trialEnd.toISOString(),
+      trial_started_at: now.toISOString(),
+      trial_ends_at: trialEnd.toISOString(),
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+    if (existingSubIdx === -1) {
+      subsList.push(newSub);
+    } else {
+      subsList[existingSubIdx] = { ...subsList[existingSubIdx], ...newSub };
+    }
+    localStorage.setItem(STORAGE_KEYS.SUBSCRIPTIONS, JSON.stringify(subsList));
+
     DB.logAudit(id, data.owner_name, 'CRIOU_EMPRESA', 'Business', `Empresa ${data.name} criada.`);
     DB.syncSubscribersToVault();
 
@@ -690,6 +715,23 @@ export class DB {
           ])
           .then(({ error }) => {
             if (error) console.warn('Supabase business sync error:', error);
+          });
+
+        supabase
+          .from('subscriptions')
+          .upsert([
+            {
+              business_id: id,
+              plan_id: newSub.plan_id,
+              status: newSub.status,
+              started_at: newSub.started_at,
+              expires_at: newSub.expires_at,
+              trial_started_at: newSub.trial_started_at,
+              trial_ends_at: newSub.trial_ends_at,
+            },
+          ])
+          .then(({ error }) => {
+            if (error) console.warn('Supabase subscription sync error:', error);
           });
       } catch (err) {
         console.warn('Supabase business insert caught error:', err);

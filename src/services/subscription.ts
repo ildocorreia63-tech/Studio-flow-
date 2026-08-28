@@ -128,6 +128,17 @@ export function invalidateSubscriptionCache(businessId?: string): void {
 
 export class SubscriptionService {
   /**
+   * Invalidate in-memory caches
+   */
+  static invalidateSubscriptionCache(businessId?: string): void {
+    invalidateSubscriptionCache(businessId);
+  }
+
+  static invalidateCache(businessId?: string): void {
+    invalidateSubscriptionCache(businessId);
+  }
+
+  /**
    * Returns plan definition by ID
    */
   static getPlanLimits(planId: SaaSPlan): PlanLimits {

@@ -3,7 +3,7 @@ import {
   Settings, Save, RefreshCw, Check, AlertTriangle, Scissors, UserCheck, Globe, Upload,
   Image as ImageIcon, Link as LinkIcon, Trash2, Sparkles, Building, Crown, X, Smartphone,
   Share, MoreVertical, PlusSquare, Monitor, Bell, CheckCircle2, Copy, ExternalLink, AlertCircle,
-  Sun, Moon, Palette
+  Sun, Moon, Palette, CreditCard, Building2
 } from 'lucide-react';
 import { DB } from '../../services/db';
 import { Business, ActiveTab, UserProfile } from '../../types';
@@ -308,7 +308,7 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
 
       {/* Navigation Quick Links */}
       {onNavigate && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button
             type="button"
             onClick={() => onNavigate('servicos')}
@@ -318,8 +318,8 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
               <Scissors className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-purple-950">Serviços, Preços & Duração</h4>
-              <p className="text-[11px] text-purple-700">Cadastrar cortes, barba, valores e tempo</p>
+              <h4 className="text-xs font-bold text-purple-950">Serviços & Preços</h4>
+              <p className="text-[11px] text-purple-700">Cortes, barba e valores</p>
             </div>
           </button>
 
@@ -332,8 +332,8 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
               <UserCheck className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-xs font-bold text-indigo-950">Equipe de Profissionais</h4>
-              <p className="text-[11px] text-indigo-700">Cadastrar barbeiros e horários</p>
+              <h4 className="text-xs font-bold text-indigo-950">Equipe de Barbeiros</h4>
+              <p className="text-[11px] text-indigo-700">Profissionais e horários</p>
             </div>
           </button>
 
@@ -347,8 +347,55 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
             </div>
             <div>
               <h4 className="text-xs font-bold text-blue-950">Agendamento Online</h4>
-              <p className="text-[11px] text-blue-700">Personalizar página e link público</p>
+              <p className="text-[11px] text-blue-700">Link público e personalização</p>
             </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('assinatura')}
+            className="p-4 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-2xl flex items-center gap-3 text-left transition cursor-pointer shadow-xs"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <CreditCard className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-amber-950">Assinaturas SaaS</h4>
+              <p className="text-[11px] text-amber-700">Lista de barbearias e planos</p>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* SaaS Admin Banner in Configurações */}
+      {onNavigate && (
+        <div className="p-5 bg-gradient-to-r from-slate-900 via-purple-950 to-slate-900 border border-purple-700/60 rounded-3xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-purple-600/90 text-white flex items-center justify-center shrink-0 shadow-md">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-extrabold text-sm sm:text-base text-white">
+                  Assinaturas SaaS & Lista de Barbearias Assinantes
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  Painel Admin
+                </span>
+              </div>
+              <p className="text-xs text-purple-200/90 mt-0.5">
+                Visualize todas as barbearias cadastradas, gerencie planos, ative períodos de teste e acompanhe o faturamento recorrente.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('assinatura')}
+            className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-extrabold shadow-md transition flex items-center space-x-2 shrink-0 cursor-pointer"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Ver Lista de Barbearias Assinantes</span>
           </button>
         </div>
       )}

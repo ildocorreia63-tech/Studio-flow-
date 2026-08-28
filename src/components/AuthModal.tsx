@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Mail, Lock, ArrowRight, UserPlus, LogIn, AlertCircle, X, Globe, Building2, ChevronRight, Store } from 'lucide-react';
+import React, { useState } from 'react';
+import { Mail, Lock, UserPlus, LogIn, AlertCircle, X, Globe } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, UserProfile } from '../types';
@@ -26,14 +26,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [isForgotPass, setIsForgotPass] = useState(false);
-  const [savedBusinesses, setSavedBusinesses] = useState<Business[]>([]);
-
-  useEffect(() => {
-    if (isOpen) {
-      const bizList = DB.getBusinesses();
-      setSavedBusinesses(bizList);
-    }
-  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -304,61 +296,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>{loading ? 'ACESSANDO...' : 'ENTRAR'}</span>
               </button>
 
-              {/* Barbearias salvas neste navegador / dispositivo */}
-              {savedBusinesses.length > 0 && (
-                <div className="pt-2">
-                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center space-x-1">
-                    <Store className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                    <span>Barbearias salvas neste dispositivo:</span>
-                  </p>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {savedBusinesses.map((biz) => (
-                      <button
-                        key={biz.id}
-                        type="button"
-                        onClick={() => {
-                          if (biz.email) {
-                            setEmail(biz.email);
-                          }
-                          // Auto login if fallback
-                          const profs = DB.getProfiles(biz.id);
-                          const prof = profs[0] || {
-                            id: 'usr-' + biz.id,
-                            business_id: biz.id,
-                            name: biz.owner_name || biz.name,
-                            email: biz.email || 'contato@barbearia.com',
-                            role: 'OWNER',
-                            created_at: new Date().toISOString(),
-                          };
-                          onLoginSuccess(prof, biz);
-                        }}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800/80 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-slate-200 dark:border-slate-700/80 hover:border-purple-300 dark:hover:border-purple-700 rounded-xl flex items-center justify-between text-left transition group cursor-pointer"
-                      >
-                        <div className="min-w-0 flex items-center space-x-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 flex items-center justify-center font-bold text-xs shrink-0">
-                            {biz.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-purple-700 dark:group-hover:text-purple-300">
-                              {biz.name}
-                            </p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                              {biz.email || biz.owner_name}
-                            </p>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 transition shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="pt-3 space-y-2 border-t border-gray-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={onOpenSignup}
-                  className="w-full border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 font-bold py-2.5 rounded-xl hover:bg-purple-50 dark:hover:bg-slate-800 text-xs transition flex items-center justify-center space-x-1.5"
+                  className="w-full border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-300 font-bold py-2.5 rounded-xl hover:bg-purple-50 dark:hover:bg-slate-800 text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>CRIAR CONTA & TESTAR GRÁTIS</span>
@@ -368,7 +310,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <button
                     type="button"
                     onClick={onViewLandingPage}
-                    className="w-full text-slate-500 dark:text-slate-400 hover:text-purple-700 dark:hover:text-purple-300 text-xs font-semibold py-1.5 flex items-center justify-center space-x-1 transition"
+                    className="w-full text-slate-500 dark:text-slate-400 hover:text-purple-700 dark:hover:text-purple-300 text-xs font-semibold py-1.5 flex items-center justify-center space-x-1 transition cursor-pointer"
                   >
                     <Globe className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                     <span>Conhecer Planos & Apresentação (Página Inicial)</span>

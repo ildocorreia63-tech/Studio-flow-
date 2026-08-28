@@ -4,7 +4,7 @@ import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Business, BusinessType, UserProfile, SaaSPlan } from '../types';
 import { StudioFlowLogo } from './StudioFlowLogo';
-import { PLANS } from '../services/subscription';
+import { PLANS, SubscriptionService } from '../services/subscription';
 import { WhatsAppService } from '../utils/whatsapp';
 import { getPublicBookingUrl } from '../utils/url';
 
@@ -165,6 +165,30 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               allBiz.push(createdBiz);
               localStorage.setItem('sf_businesses', JSON.stringify(allBiz));
             }
+
+            // Record local subscription mirror
+            const rawSubs = localStorage.getItem('sf_subscriptions');
+            const subsList = rawSubs ? JSON.parse(rawSubs) : [];
+            const existingSubIdx = subsList.findIndex((s: any) => s.business_id === createdBiz.id);
+            const subData = {
+              id: `sub-${createdBiz.id}`,
+              business_id: createdBiz.id,
+              plan_id: selectedPlan,
+              status: 'TRIAL',
+              started_at: now.toISOString(),
+              expires_at: trialEnd.toISOString(),
+              trial_started_at: now.toISOString(),
+              trial_ends_at: trialEnd.toISOString(),
+              created_at: now.toISOString(),
+              updated_at: now.toISOString(),
+            };
+            if (existingSubIdx === -1) {
+              subsList.push(subData);
+            } else {
+              subsList[existingSubIdx] = { ...subsList[existingSubIdx], ...subData };
+            }
+            localStorage.setItem('sf_subscriptions', JSON.stringify(subsList));
+
             const allProfiles = DB.getProfiles(createdBiz.id);
             if (!allProfiles.some((p) => p.id === ownerObj.id)) {
               DB.createProfile({
@@ -175,6 +199,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 phone: whatsapp,
               });
             }
+            SubscriptionService.invalidateSubscriptionCache(createdBiz.id);
             DB.syncSubscribersToVault();
           } catch (e) {
             console.warn('Local mirror error:', e);
