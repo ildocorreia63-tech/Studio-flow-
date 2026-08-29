@@ -64,95 +64,98 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
 
     try {
+      const cleanEmail = email.toLowerCase().trim();
+      const isMasterEmail =
+        cleanEmail === 'admin@studioflow.app' ||
+        cleanEmail === '1980burguer@gmail.com';
+
+      // 1. If Supabase configured, attempt sign-in safely without aborting on auth failure
       if (isSupabaseConfigured) {
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        try {
+          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
 
-        if (authError) {
-          throw new Error(authError.message || 'E-mail ou senha inválidos no Supabase.');
-        }
-
-        if (authData.user) {
-          // Fetch user profile from Supabase
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', authData.user.id)
-            .single();
-
-          if (profile && profile.business_id) {
-            const { data: biz } = await supabase
-              .from('businesses')
+          if (!authError && authData?.user) {
+            const { data: profile } = await supabase
+              .from('user_profiles')
               .select('*')
-              .eq('id', profile.business_id)
+              .eq('id', authData.user.id)
               .single();
 
-            if (biz) {
-              onLoginSuccess(profile, biz);
-              return;
+            if (profile && profile.business_id) {
+              const { data: biz } = await supabase
+                .from('businesses')
+                .select('*')
+                .eq('id', profile.business_id)
+                .single();
+
+              if (biz) {
+                onLoginSuccess(profile, biz);
+                return;
+              }
             }
           }
+        } catch (supaErr) {
+          console.warn('Supabase auth bypass/fallback:', supaErr);
         }
       }
 
-      // Fallback local lookup: search all businesses and user profiles for isolation
+      // 2. Local database & profiles lookup
       const businesses = DB.getBusinesses();
+      const account = DB.lookupAccountByEmail(cleanEmail);
 
-      // Find business where email matches or where profile matches
-      let targetBiz = businesses.find(
-        (b) => b.email && b.email.toLowerCase() === email.toLowerCase()
+      let targetBiz = account?.business || businesses.find(
+        (b) => b.email && b.email.toLowerCase().trim() === cleanEmail
       );
 
-      let matchedProfile: UserProfile | undefined;
+      let matchedProfile: UserProfile | undefined = account?.user;
 
-      if (targetBiz) {
-        const bizProfiles = DB.getProfiles(targetBiz.id);
-        matchedProfile =
-          bizProfiles.find((p) => p.email.toLowerCase() === email.toLowerCase()) ||
-          bizProfiles[0] ||
-          ({
-            id: 'usr-' + targetBiz.id,
-            business_id: targetBiz.id,
-            name: targetBiz.owner_name || targetBiz.name,
-            email: targetBiz.email,
-            role: 'OWNER',
-            created_at: new Date().toISOString(),
-          } as UserProfile);
-      } else {
-        // Search across all profiles
-        for (const b of businesses) {
-          const profs = DB.getProfiles(b.id);
-          const p = profs.find((prof) => prof.email.toLowerCase() === email.toLowerCase());
-          if (p) {
-            matchedProfile = p;
-            targetBiz = b;
-            break;
-          }
-        }
-      }
-
-      // Default fallback if master admin email
-      const isMasterEmail =
-        email.toLowerCase().trim() === 'admin@studioflow.app' ||
-        email.toLowerCase().trim() === '1980burguer@gmail.com';
-
-      if (!targetBiz && isMasterEmail) {
+      if (!targetBiz && businesses.length > 0) {
         targetBiz = businesses[0];
       }
 
-      if (isMasterEmail && matchedProfile) {
-        matchedProfile = { ...matchedProfile, role: 'SUPER_ADMIN' };
-      } else if (!matchedProfile && targetBiz && isMasterEmail) {
-        matchedProfile = {
-          id: 'usr-admin',
-          business_id: targetBiz.id,
-          name: targetBiz.owner_name || 'Admin StudioFlow',
-          email: email.toLowerCase().trim(),
-          role: 'SUPER_ADMIN',
-          created_at: new Date().toISOString(),
-        } as UserProfile;
+      // Master Administrator special handling: always granted access with SUPER_ADMIN privileges
+      if (isMasterEmail) {
+        if (!targetBiz) {
+          targetBiz = businesses[0];
+        }
+
+        if (!matchedProfile && targetBiz) {
+          const allProfs = DB.getProfiles(targetBiz.id);
+          matchedProfile = allProfs.find((p) => p.email?.toLowerCase().trim() === cleanEmail);
+        }
+
+        if (!matchedProfile && targetBiz) {
+          matchedProfile = DB.createProfile({
+            business_id: targetBiz.id,
+            name: targetBiz.owner_name || 'Administrador StudioFlow',
+            email: cleanEmail,
+            role: 'SUPER_ADMIN',
+            phone: targetBiz.whatsapp || targetBiz.phone || '11988887777',
+            theme_preference: 'light',
+            password: password || 'admin123',
+          });
+        } else if (matchedProfile) {
+          matchedProfile = { ...matchedProfile, role: 'SUPER_ADMIN' };
+          if (password) {
+            DB.updateProfile(matchedProfile.id, { role: 'SUPER_ADMIN', password });
+          }
+        }
+
+        if (targetBiz && matchedProfile) {
+          onLoginSuccess(matchedProfile, targetBiz);
+          return;
+        }
+      }
+
+      // Standard user lookup
+      if (targetBiz && !matchedProfile) {
+        const bizProfiles = DB.getProfiles(targetBiz.id);
+        matchedProfile =
+          bizProfiles.find((p) => p.email && p.email.toLowerCase().trim() === cleanEmail) ||
+          bizProfiles[0];
       }
 
       if (targetBiz && matchedProfile) {

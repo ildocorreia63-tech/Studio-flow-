@@ -44,6 +44,7 @@ import {
 } from '../types';
 
 import { supabase, isSupabaseConfigured } from './supabase';
+import { FirebaseSyncService } from './firebaseSync';
 import { SubscriptionService, invalidateSubscriptionCache } from './subscription';
 
 export function normalizeStatusToUI(statusStr: string): AppointmentStatus {
@@ -533,7 +534,38 @@ export class DB {
       return bSlugNorm === normalizedTarget || bNameNorm === normalizedTarget;
     });
 
-    return found;
+    if (found) return found;
+
+    // 4. Auto-provision for new requested custom slug (e.g. toty-studio)
+    if (clean && clean !== 'undefined' && clean !== 'null' && clean !== 'false') {
+      const formattedName = clean
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+
+      const newBiz = DB.createBusiness({
+        name: formattedName,
+        type: 'Barbearia + Salão',
+        owner_name: formattedName + ' Owner',
+        email: `${clean}@studioflow.app`,
+        phone: '(11) 98888-7777',
+        whatsapp: '11988887777',
+        address: 'Atendimento com Hora Marcada',
+        city: 'São Paulo',
+        state: 'SP',
+        zip_code: '01000-000',
+        slug: clean,
+        logo_url: '',
+        plan: 'professional',
+        cancellation_policy: 'Cancelamentos sem custo com até 2h de antecedência.',
+        min_advance_time_hours: 1,
+        slot_duration_minutes: 30,
+      });
+
+      return newBiz;
+    }
+
+    return undefined;
   }
 
   static createBusiness(data: Omit<Business, 'id' | 'created_at' | 'updated_at'>): Business {
@@ -738,6 +770,9 @@ export class DB {
       }
     }
 
+    // Sync to Firebase Cloud
+    FirebaseSyncService.syncBusiness(newBiz).catch((e) => console.warn('Firebase sync error:', e));
+
     return newBiz;
   }
 
@@ -753,6 +788,9 @@ export class DB {
     saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
     DB.logAudit(id, 'Admin', 'ATUALIZOU_EMPRESA', 'Business', `Configurações atualizadas.`);
     DB.syncSubscribersToVault();
+
+    // Sync to Firebase Cloud
+    FirebaseSyncService.syncBusiness(businesses[idx]).catch((e) => console.warn('Firebase update sync error:', e));
 
     // Sync to Supabase if configured
     if (isSupabaseConfigured) {
@@ -1008,6 +1046,12 @@ export class DB {
         success: false,
         message: 'Nenhuma conta encontrada para o e-mail informado. Verifique o e-mail digitado.',
       };
+    }
+
+    // Cloud sync password
+    FirebaseSyncService.updatePasswordInCloud(normalized, newPassword).catch((e) => console.warn('Cloud pass sync err:', e));
+    if (targetProfile) {
+      FirebaseSyncService.saveUserProfile(targetProfile).catch((e) => console.warn('Cloud user sync err:', e));
     }
 
     return {
@@ -1473,6 +1517,9 @@ export class DB {
 
     const localSaved = DB.createAppointment(data);
     invalidateSubscriptionCache(data.business_id);
+
+    // Sync directly to Firebase Firestore
+    FirebaseSyncService.saveAppointment(localSaved).catch((e) => console.warn('Firebase appointment sync err:', e));
 
     if (isSupabaseConfigured) {
       try {

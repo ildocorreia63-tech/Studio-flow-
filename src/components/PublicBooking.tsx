@@ -11,9 +11,13 @@ import {
   ArrowLeft,
   AlertCircle,
   Building,
+  LogIn,
+  KeyRound,
+  Shield,
 } from 'lucide-react';
 import { DB, addMinutesToTime } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { FirebaseSyncService } from '../services/firebaseSync';
 import { WhatsAppService } from '../utils/whatsapp';
 import { PwaService } from '../services/pwaService';
 import { Business, Service, Professional } from '../types';
@@ -189,7 +193,7 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
         });
       }
 
-      DB.createAppointment({
+      const createdApt = DB.createAppointment({
         business_id: business.id,
         client_id: client.id,
         client_name: client.name,
@@ -207,6 +211,8 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
         status: 'AGENDADO',
         notes: 'Agendamento Online via Link do Estabelecimento',
       });
+
+      FirebaseSyncService.saveAppointment(createdApt).catch((e) => console.warn('PublicBooking firebase apt err:', e));
 
       // 3. Format WhatsApp Confirmation Message
       const [yyyy, mm, dd] = selectedDate.split('-');
@@ -238,10 +244,11 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
           {onBackToApp && (
             <button
               onClick={onBackToApp}
-              className="absolute left-4 top-4 text-purple-100 hover:text-white bg-purple-800/60 hover:bg-purple-700/80 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition border border-purple-600/50 shadow-xs cursor-pointer"
+              className="absolute left-4 top-4 text-purple-100 hover:text-white bg-purple-800/80 hover:bg-purple-700 px-3.5 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition border border-purple-500/60 shadow-md cursor-pointer"
+              title="Acessar Área do Proprietário e Painel de Gestão"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Acessar Painel / App</span>
+              <LogIn className="w-3.5 h-3.5 text-purple-300" />
+              <span>Painel do Dono / Entrar</span>
             </button>
           )}
 

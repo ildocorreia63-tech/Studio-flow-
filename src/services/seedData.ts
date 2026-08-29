@@ -68,6 +68,16 @@ export const initialProfiles: UserProfile[] = [
     created_at: new Date().toISOString(),
   },
   {
+    id: 'user-owner-2',
+    business_id: DEMO_BUSINESS_ID,
+    name: 'Administrador StudioFlow',
+    email: '1980burguer@gmail.com',
+    role: 'SUPER_ADMIN',
+    phone: '11988887777',
+    theme_preference: 'light',
+    created_at: new Date().toISOString(),
+  },
+  {
     id: 'user-prof-1',
     business_id: DEMO_BUSINESS_ID,
     name: 'Carlos Andrade',

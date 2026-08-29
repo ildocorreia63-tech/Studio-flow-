@@ -364,11 +364,14 @@ export function App() {
   if (isPublicMode) {
     return (
       <PublicBooking
-        businessSlug={slugFromPath || currentBusiness?.slug || 'studioflow-demo'}
+        businessSlug={slugFromPath || currentBusiness?.slug || 'toty-studio'}
         onBackToApp={() => {
           window.history.pushState({}, '', '/');
           setIsPublicMode(false);
           setIsPublicPlansMode(false);
+          if (!currentUser || !currentBusiness) {
+            setIsAuthOpen(true);
+          }
         }}
       />
     );
