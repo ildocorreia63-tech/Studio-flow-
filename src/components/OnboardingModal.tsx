@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Building2, User, Phone, MapPin, Clock, ArrowRight, CheckCircle, ShieldCheck, Zap, X, Lock, Eye, EyeOff } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { FirebaseSyncService } from '../services/firebaseSync';
 import { Business, BusinessType, UserProfile, SaaSPlan } from '../types';
 import { StudioFlowLogo } from './StudioFlowLogo';
 import { PLANS, SubscriptionService } from '../services/subscription';
@@ -39,6 +40,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [createdData, setCreatedData] = useState<{ business: Business; owner: UserProfile; waUrl: string } | null>(null);
 
   useEffect(() => {
     if (initialPlan) {
@@ -159,9 +161,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             business_id: createdBiz.id,
             name: ownerName,
             email,
+            password: password.trim(),
             role: 'OWNER',
             phone: whatsapp,
           };
+
+          // Save account in Firebase Cloud Firestore
+          FirebaseSyncService.saveAccount(createdBiz, ownerObj).catch((e) => console.warn('Firebase saveAccount error:', e));
 
           // Also mirror and dual-persist locally so it never disappears offline or upon logout/reload
           try {
@@ -223,10 +229,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             bookingUrl,
           });
 
-          // Abre mensagem de boas-vindas no WhatsApp do dono
-          window.open(waUrl, '_blank');
+          // Tentativa de abrir o WhatsApp do assinante
+          try {
+            window.open(waUrl, '_blank');
+          } catch (wErr) {
+            console.warn('Popup blocked:', wErr);
+          }
 
-          onComplete(createdBiz, ownerObj);
+          setCreatedData({ business: createdBiz, owner: ownerObj, waUrl });
+          setStep(3);
           return;
         }
       }
@@ -273,6 +284,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         phone: whatsapp,
       });
 
+      // Save account to Firebase Cloud
+      FirebaseSyncService.saveAccount(createdBiz, createdOwner).catch((e) => console.warn('Firebase saveAccount error:', e));
+
       // Disparar confirmação e boas-vindas no WhatsApp do Dono
       const bookingUrl = getPublicBookingUrl(createdBiz.slug || slug);
       const planName = PLANS[selectedPlan]?.name || 'Profissional';
@@ -285,9 +299,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         bookingUrl,
       });
 
-      window.open(waUrl, '_blank');
+      try {
+        window.open(waUrl, '_blank');
+      } catch (wErr) {
+        console.warn('Popup blocked:', wErr);
+      }
 
-      onComplete(createdBiz, createdOwner);
+      setCreatedData({ business: createdBiz, owner: createdOwner, waUrl });
+      setStep(3);
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao finalizar cadastro do estabelecimento.');
     } finally {
@@ -322,7 +341,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </div>
 
           {/* Stepper Progress */}
-          <div className="flex items-center space-x-4 mt-6 pt-4 border-t border-purple-800/60">
+          <div className="flex items-center space-x-3 mt-6 pt-4 border-t border-purple-800/60">
             <div className={`flex items-center space-x-2 text-xs font-bold ${step >= 1 ? 'text-purple-200' : 'text-purple-400'}`}>
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 1 ? 'bg-purple-600 text-white' : 'bg-purple-900 text-purple-400'}`}>1</span>
               <span>Dados & Plano</span>
@@ -330,7 +349,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             <div className="flex-1 h-0.5 bg-purple-800/80"></div>
             <div className={`flex items-center space-x-2 text-xs font-bold ${step >= 2 ? 'text-purple-200' : 'text-purple-400'}`}>
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 2 ? 'bg-purple-600 text-white' : 'bg-purple-900 text-purple-400'}`}>2</span>
-              <span>Endereço & Confirmação</span>
+              <span>Endereço</span>
+            </div>
+            <div className="flex-1 h-0.5 bg-purple-800/80"></div>
+            <div className={`flex items-center space-x-2 text-xs font-bold ${step >= 3 ? 'text-emerald-300' : 'text-purple-400'}`}>
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${step >= 3 ? 'bg-emerald-500 text-white' : 'bg-purple-900 text-purple-400'}`}>3</span>
+              <span>Conclusão</span>
             </div>
           </div>
         </div>
@@ -343,7 +367,73 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
           )}
 
-          {step === 1 ? (
+          {step === 3 && createdData ? (
+            <div className="space-y-6 text-center py-2">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle className="w-9 h-9" />
+              </div>
+
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-gray-900">
+                  Cadastro Realizado com Sucesso! 🎉
+                </h3>
+                <p className="text-sm text-gray-600 mt-1 font-medium">
+                  Sua barbearia foi configurada e seu período de 14 dias grátis já está ativo!
+                </p>
+              </div>
+
+              {/* Highlight Banner: Email Notice */}
+              <div className="p-5 bg-purple-50 border-2 border-purple-200 rounded-2xl text-left space-y-2 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-900 font-extrabold text-sm">
+                  <Sparkles className="w-5 h-5 text-purple-700 shrink-0" />
+                  <span>Dados Enviados para o Seu E-mail:</span>
+                </div>
+                <p className="text-xs text-purple-800 leading-relaxed font-medium">
+                  Os dados de confirmação da sua assinatura e seus dados de acesso ao painel foram enviados para o seu e-mail:
+                </p>
+                <div className="p-3 bg-white rounded-xl border border-purple-200 text-purple-950 font-black text-sm text-center select-all">
+                  📧 {email}
+                </div>
+              </div>
+
+              {/* Details summary */}
+              <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-left text-xs space-y-1.5 text-gray-700">
+                <p>• <strong>Estabelecimento:</strong> {businessName}</p>
+                <p>• <strong>Proprietário:</strong> {ownerName}</p>
+                <p>• <strong>Plano Ativado:</strong> {PLANS[selectedPlan]?.name} (14 Dias de Teste Grátis)</p>
+                <p>• <strong>WhatsApp Notificado:</strong> {whatsapp}</p>
+              </div>
+
+              {/* Action buttons */}
+              <div className="space-y-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (createdData?.waUrl) {
+                      window.open(createdData.waUrl, '_blank');
+                    }
+                  }}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 transition cursor-pointer"
+                >
+                  <Phone className="w-5 h-5" />
+                  <span>Abrir Notificação no Meu WhatsApp</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (createdData) {
+                      onComplete(createdData.business, createdData.owner);
+                    }
+                  }}
+                  className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white font-black text-sm flex items-center justify-center space-x-2 shadow-lg shadow-purple-700/20 transition cursor-pointer"
+                >
+                  <span>Acessar Meu Painel Agora</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          ) : step === 1 ? (
             <form onSubmit={handleNextStep1} className="space-y-6">
               {/* Plan Selection Box */}
               <div>

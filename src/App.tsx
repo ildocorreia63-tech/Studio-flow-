@@ -301,10 +301,10 @@ export function App() {
       // 2. Local DB session restoration: if user has saved session and did NOT log out
       if (savedUserId && savedBizId && !isLoggedOut) {
         const businesses = DB.getBusinesses();
-        const targetBiz = businesses.find((b) => b.id === savedBizId) || businesses[0];
+        const targetBiz = businesses.find((b) => b.id === savedBizId);
         if (targetBiz) {
           const profiles = DB.getProfiles(targetBiz.id);
-          const targetProfile = profiles.find((p) => p.id === savedUserId) || profiles[0];
+          const targetProfile = profiles.find((p) => p.id === savedUserId);
           if (targetProfile) {
             setCurrentUser(targetProfile);
             setCurrentBusiness(targetBiz);

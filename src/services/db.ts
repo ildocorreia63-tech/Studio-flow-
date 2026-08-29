@@ -946,7 +946,52 @@ export class DB {
     };
     profiles.push(newP);
     saveStorage(STORAGE_KEYS.PROFILES, profiles);
+    FirebaseSyncService.saveUserProfile(newP).catch((e) => console.warn('Firebase profile sync error:', e));
     return newP;
+  }
+
+  static persistCloudAccountLocally(business: Business, user: UserProfile): void {
+    try {
+      const businesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+      const bIdx = businesses.findIndex((b) => b.id === business.id);
+      if (bIdx === -1) {
+        businesses.push(business);
+      } else {
+        businesses[bIdx] = { ...businesses[bIdx], ...business };
+      }
+      saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
+
+      const profiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+      const pIdx = profiles.findIndex((p) => p.id === user.id);
+      if (pIdx === -1) {
+        profiles.push(user);
+      } else {
+        profiles[pIdx] = { ...profiles[pIdx], ...user };
+      }
+      saveStorage(STORAGE_KEYS.PROFILES, profiles);
+
+      // Create default subscription mirror if missing
+      const subs = loadStorage<any[]>(STORAGE_KEYS.SUBSCRIPTIONS, []);
+      if (!subs.some((s) => s.business_id === business.id)) {
+        const now = new Date();
+        const trialEnd = new Date(now.getTime() + 14 * 86400000);
+        subs.push({
+          id: `sub-${business.id}`,
+          business_id: business.id,
+          plan_id: business.plan || 'professional',
+          status: 'ACTIVE',
+          started_at: now.toISOString(),
+          expires_at: trialEnd.toISOString(),
+          trial_started_at: now.toISOString(),
+          trial_ends_at: trialEnd.toISOString(),
+          created_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        });
+        saveStorage(STORAGE_KEYS.SUBSCRIPTIONS, subs);
+      }
+    } catch (e) {
+      console.warn('persistCloudAccountLocally error:', e);
+    }
   }
 
   static updateProfile(profileId: string, updates: Partial<UserProfile>): UserProfile | null {

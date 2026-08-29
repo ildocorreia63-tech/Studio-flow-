@@ -254,13 +254,15 @@ Sua barbearia *${data.businessName}* foi cadastrada com sucesso na nossa platafo
 • *Estabelecimento:* ${data.businessName}
 • *Proprietário:* ${data.ownerName}
 • *Plano Ativado:* ${data.planName} (14 Dias de Teste Grátis Ativado)
-• *WhatsApp do Administrador:* ${data.ownerPhone}
+• *WhatsApp Cadastrado:* ${data.ownerPhone}
 • *E-mail de Acesso:* ${data.email}
+
+📧 *Os dados de acesso e confirmação também foram enviados para o seu e-mail:* ${data.email}
 
 🔗 *Link do Agendamento dos seus Clientes:*
 ${data.bookingUrl}
 
-Seu painel administrativo já está 100% liberado e ativo! Seja bem-vindo e ótimos negócios!🚀`;
+Seu painel administrativo já está 100% liberado e ativo! Seja bem-vindo e ótimos negócios! 🚀`;
 
     return buildWhatsAppLink(data.ownerPhone, message);
   },

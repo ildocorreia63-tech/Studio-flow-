@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DB } from '../services/db';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { FirebaseSyncService } from '../services/firebaseSync';
 import { Business, UserProfile } from '../types';
 import { StudioFlowLogo } from './StudioFlowLogo';
 import { buildWhatsAppLink } from '../utils/whatsapp';
@@ -69,7 +70,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         cleanEmail === 'admin@studioflow.app' ||
         cleanEmail === '1980burguer@gmail.com';
 
-      // 1. If Supabase configured, attempt sign-in safely without aborting on auth failure
+      // 1. If Supabase configured, attempt sign-in safely
       if (isSupabaseConfigured) {
         try {
           const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -92,6 +93,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 .single();
 
               if (biz) {
+                DB.persistCloudAccountLocally(biz, profile);
                 onLoginSuccess(profile, biz);
                 return;
               }
@@ -102,71 +104,74 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       }
 
-      // 2. Local database & profiles lookup
-      const businesses = DB.getBusinesses();
-      const account = DB.lookupAccountByEmail(cleanEmail);
-
-      let targetBiz = account?.business || businesses.find(
-        (b) => b.email && b.email.toLowerCase().trim() === cleanEmail
-      );
-
-      let matchedProfile: UserProfile | undefined = account?.user;
-
-      if (!targetBiz && businesses.length > 0) {
-        targetBiz = businesses[0];
-      }
-
-      // Master Administrator special handling: always granted access with SUPER_ADMIN privileges
+      // 2. Master SaaS Administrator special handling
       if (isMasterEmail) {
-        if (!targetBiz) {
-          targetBiz = businesses[0];
+        const businesses = DB.getBusinesses();
+        let masterBiz = businesses[0];
+        let masterProfile: UserProfile | undefined;
+
+        if (masterBiz) {
+          const allProfs = DB.getProfiles(masterBiz.id);
+          masterProfile = allProfs.find((p) => p.email?.toLowerCase().trim() === cleanEmail);
         }
 
-        if (!matchedProfile && targetBiz) {
-          const allProfs = DB.getProfiles(targetBiz.id);
-          matchedProfile = allProfs.find((p) => p.email?.toLowerCase().trim() === cleanEmail);
-        }
-
-        if (!matchedProfile && targetBiz) {
-          matchedProfile = DB.createProfile({
-            business_id: targetBiz.id,
-            name: targetBiz.owner_name || 'Administrador StudioFlow',
+        if (!masterProfile && masterBiz) {
+          masterProfile = DB.createProfile({
+            business_id: masterBiz.id,
+            name: masterBiz.owner_name || 'Administrador StudioFlow',
             email: cleanEmail,
             role: 'SUPER_ADMIN',
-            phone: targetBiz.whatsapp || targetBiz.phone || '11988887777',
+            phone: masterBiz.whatsapp || masterBiz.phone || '11988887777',
             theme_preference: 'light',
             password: password || 'admin123',
           });
-        } else if (matchedProfile) {
-          matchedProfile = { ...matchedProfile, role: 'SUPER_ADMIN' };
+        } else if (masterProfile) {
+          masterProfile = { ...masterProfile, role: 'SUPER_ADMIN' };
           if (password) {
-            DB.updateProfile(matchedProfile.id, { role: 'SUPER_ADMIN', password });
+            DB.updateProfile(masterProfile.id, { role: 'SUPER_ADMIN', password });
           }
         }
 
-        if (targetBiz && matchedProfile) {
-          onLoginSuccess(matchedProfile, targetBiz);
+        if (masterBiz && masterProfile) {
+          onLoginSuccess(masterProfile, masterBiz);
           return;
         }
       }
 
-      // Standard user lookup
-      if (targetBiz && !matchedProfile) {
-        const bizProfiles = DB.getProfiles(targetBiz.id);
-        matchedProfile =
-          bizProfiles.find((p) => p.email && p.email.toLowerCase().trim() === cleanEmail) ||
-          bizProfiles[0];
+      // 3. Regular Subscriber Lookup: Check Local Storage first
+      let account = DB.lookupAccountByEmail(cleanEmail);
+
+      // 4. If not found in local browser storage, fetch from Firebase Firestore Cloud
+      if (!account || !account.business || !account.user) {
+        const cloudAcc = await FirebaseSyncService.getAccountByEmail(cleanEmail);
+        if (cloudAcc && cloudAcc.business && cloudAcc.user) {
+          DB.persistCloudAccountLocally(cloudAcc.business, cloudAcc.user);
+          account = cloudAcc;
+        }
       }
 
-      if (targetBiz && matchedProfile) {
-        if (matchedProfile.password && password && matchedProfile.password !== password) {
+      // 5. Authenticate subscriber against their own business and profile
+      if (account && account.business && account.user) {
+        const subscriberProfile = account.user;
+        const subscriberBiz = account.business;
+
+        if (subscriberProfile.password && password && subscriberProfile.password !== password) {
           setErrorMsg('Senha incorreta. Verifique a senha digitada ou clique em "ESQUECI SENHA" para redefinir na hora.');
           return;
         }
-        onLoginSuccess(matchedProfile, targetBiz);
-      } else {
-        setErrorMsg('E-mail não cadastrado. Verifique o e-mail digitado ou crie uma nova conta em "Criar Conta & Testar Grátis".');
+
+        // If no password was stored previously, save the entered password
+        if (!subscriberProfile.password && password) {
+          DB.updateProfile(subscriberProfile.id, { password });
+          FirebaseSyncService.saveUserProfile({ ...subscriberProfile, password });
+        }
+
+        onLoginSuccess(subscriberProfile, subscriberBiz);
+        return;
       }
+
+      // 6. If account does not exist anywhere
+      setErrorMsg('E-mail não cadastrado. Verifique o e-mail digitado ou crie a conta da sua barbearia em "Criar Conta & Testar Grátis".');
     } catch (err: any) {
       setErrorMsg(err.message || 'Erro ao realizar login.');
     } finally {
@@ -198,16 +203,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      // 1. Reset in local database & profiles
-      const res = DB.resetPasswordByEmail(email, newPassword);
+      const cleanEmail = email.toLowerCase().trim();
+
+      // 1. Sync update to Firebase Cloud
+      await FirebaseSyncService.updatePasswordInCloud(cleanEmail, newPassword);
+
+      // 2. Reset in local database & profiles
+      const res = DB.resetPasswordByEmail(cleanEmail, newPassword);
 
       if (!res.success) {
-        setErrorMsg(res.message);
-        setLoading(false);
-        return;
+        // If not found locally, try finding in cloud first
+        const cloudAcc = await FirebaseSyncService.getAccountByEmail(cleanEmail);
+        if (cloudAcc && cloudAcc.business && cloudAcc.user) {
+          const updatedUser: UserProfile = { ...cloudAcc.user, password: newPassword };
+          DB.persistCloudAccountLocally(cloudAcc.business, updatedUser);
+          setPassword(newPassword);
+          setUpdatedUserBiz({ user: updatedUser, business: cloudAcc.business });
+          setResetSuccess(true);
+          setSuccessMsg('Senha alterada com sucesso! Você já pode acessar seu painel.');
+          return;
+        } else {
+          setErrorMsg(res.message || 'E-mail não encontrado.');
+          return;
+        }
       }
 
-      // 2. If Supabase configured, attempt sync
+      // 3. If Supabase configured, attempt sync
       if (isSupabaseConfigured) {
         try {
           await supabase.auth.updateUser({ password: newPassword });
