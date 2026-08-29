@@ -133,39 +133,41 @@ export const ProfissionaisView: React.FC<ProfissionaisViewProps> = ({ business }
 
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Nome *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Nome *</label>
                 <input
                   type="text"
                   required
+                  placeholder="Nome do profissional"
                   value={editingProf.name || ''}
                   onChange={(e) => setEditingProf({ ...editingProf, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Especialidade</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Especialidade</label>
                 <input
                   type="text"
                   placeholder="Ex: Barbeiro Visagista"
                   value={editingProf.specialty || ''}
                   onChange={(e) => setEditingProf({ ...editingProf, specialty: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">WhatsApp</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">WhatsApp</label>
                 <input
                   type="text"
+                  placeholder="(11) 99999-9999"
                   value={editingProf.phone || ''}
                   onChange={(e) => setEditingProf({ ...editingProf, phone: e.target.value, whatsapp: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Comissão (%) *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Comissão (%) *</label>
                 <input
                   type="number"
                   required
@@ -173,7 +175,7 @@ export const ProfissionaisView: React.FC<ProfissionaisViewProps> = ({ business }
                   max={100}
                   value={editingProf.commission_rate ?? 40}
                   onChange={(e) => setEditingProf({ ...editingProf, commission_rate: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
@@ -181,13 +183,13 @@ export const ProfissionaisView: React.FC<ProfissionaisViewProps> = ({ business }
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="px-5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   Salvar
                 </button>

@@ -208,18 +208,19 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
       {/* Open Modal */}
       {isOpenModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-purple-100 space-y-4">
             <h3 className="font-bold text-lg text-gray-900">Abertura de Caixa</h3>
             <form onSubmit={handleOpenRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Valor Inicial em Gaveta (R$)</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Valor Inicial em Gaveta (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
+                  placeholder="0.00"
                   value={initialAmount}
                   onChange={(e) => setInitialAmount(Number(e.target.value))}
-                  className="w-full p-3 border rounded-xl text-sm font-bold"
+                  className="w-full p-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
                 />
               </div>
 
@@ -227,13 +228,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
                 <button
                   type="button"
                   onClick={() => setIsOpenModalOpen(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   Confirmar Abertura
                 </button>
@@ -246,7 +247,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
       {/* Close Modal */}
       {isCloseModalOpen && openRegister && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-purple-100 space-y-4">
             <h3 className="font-bold text-lg text-gray-900">Fechamento de Caixa</h3>
 
             <div className="bg-purple-50 p-3 rounded-2xl text-xs space-y-1 text-purple-950 font-medium">
@@ -256,14 +257,15 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
 
             <form onSubmit={handleCloseRegister} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Saldo Físico Informado (R$)</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Saldo Físico Informado (R$)</label>
                 <input
                   type="number"
                   step="0.01"
                   required
+                  placeholder="0.00"
                   value={reportedAmount}
                   onChange={(e) => setReportedAmount(Number(e.target.value))}
-                  className="w-full p-3 border rounded-xl text-sm font-bold"
+                  className="w-full p-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
                 />
               </div>
 
@@ -271,13 +273,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
                 <button
                   type="button"
                   onClick={() => setIsCloseModalOpen(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   Fechar Caixa
                 </button>
@@ -290,16 +292,16 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
       {/* Transaction Modal (Sangria/Suprimento) */}
       {isTxModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-purple-100 space-y-4">
             <h3 className="font-bold text-lg text-gray-900">Movimentação Manual de Caixa</h3>
 
             <form onSubmit={handleAddTx} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Tipo de Operação</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Tipo de Operação</label>
                 <select
                   value={txType}
                   onChange={(e) => setTxType(e.target.value as CashTransactionType)}
-                  className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                  className="w-full p-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
                 >
                   <option value="SANGRIA">SANGRIA (Retirada de Dinheiro)</option>
                   <option value="SUPRIMENTO">SUPRIMENTO (Reforço de Caixa)</option>
@@ -307,27 +309,28 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Descrição / Motivo *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Descrição / Motivo *</label>
                 <input
                   type="text"
                   required
                   placeholder="Ex: Compra de pó de café e açúcar"
                   value={txDesc}
                   onChange={(e) => setTxDesc(e.target.value)}
-                  className="w-full p-2.5 border rounded-xl text-xs"
+                  className="w-full p-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Valor (R$) *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Valor (R$) *</label>
                 <input
                   type="number"
                   step="0.01"
                   required
                   min={0.01}
+                  placeholder="0.00"
                   value={txAmount || ''}
                   onChange={(e) => setTxAmount(Number(e.target.value))}
-                  className="w-full p-2.5 border rounded-xl text-xs font-bold"
+                  className="w-full p-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
                 />
               </div>
 
@@ -335,13 +338,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({ business }) => {
                 <button
                   type="button"
                   onClick={() => setIsTxModalOpen(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="px-5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   Confirmar
                 </button>

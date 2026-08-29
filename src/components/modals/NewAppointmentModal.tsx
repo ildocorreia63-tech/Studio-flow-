@@ -253,7 +253,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                         placeholder="Nome completo *"
                         value={newClientName}
                         onChange={(e) => setNewClientName(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                       />
                     </div>
                     <div>
@@ -262,7 +262,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                         placeholder="WhatsApp (ex: 11999998888) *"
                         value={newClientPhone}
                         onChange={(e) => setNewClientPhone(e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                       />
                     </div>
                   </div>
@@ -270,10 +270,10 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                   <select
                     value={selectedClientId}
                     onChange={(e) => setSelectedClientId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                   >
                     {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
+                      <option key={c.id} value={c.id} className="text-gray-900">
                         {c.name} — {c.phone}
                       </option>
                     ))}
@@ -289,10 +289,10 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                 <select
                   value={selectedProfId}
                   onChange={(e) => setSelectedProfId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                 >
                   {professionals.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={p.id} className="text-gray-900">
                       {p.name} ({p.specialty})
                     </option>
                   ))}
@@ -307,10 +307,10 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                 <select
                   value={selectedServiceId}
                   onChange={(e) => setSelectedServiceId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                 >
                   {services.map((s) => (
-                    <option key={s.id} value={s.id}>
+                    <option key={s.id} value={s.id} className="text-gray-900">
                       {s.name} — R$ {s.price.toFixed(2)} ({s.duration_minutes} min)
                     </option>
                   ))}
@@ -327,7 +327,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                   />
                 </div>
                 <div>
@@ -338,7 +338,7 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({
                     type="time"
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-600 focus:border-purple-600 outline-none"
                   />
                 </div>
               </div>

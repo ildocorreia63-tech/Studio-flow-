@@ -615,7 +615,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
               placeholder="Buscar por nome, telefone, WhatsApp, email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 bg-gray-50 focus:bg-white"
+              className="w-full pl-9 pr-4 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600"
             />
             {search && (
               <button
@@ -634,7 +634,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as CrmSortType)}
-              className="px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 bg-white font-bold text-gray-800"
+              className="px-3 py-2 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 bg-white font-bold text-gray-900"
             >
               <option value="LAST_VISIT_DESC">Última Visita (Mais Recente)</option>
               <option value="NAME_ASC">Nome (A-Z)</option>
@@ -790,13 +790,34 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                   <Phone className="w-3 h-3" /> WhatsApp
                 </a>
 
-                <button
-                  onClick={() => handleSelectClient(s)}
-                  className="px-4 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-[11px] rounded-xl shadow-xs transition flex items-center gap-1"
-                >
-                  <span>Perfil CRM</span>
-                  <ExternalLink className="w-3 h-3" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      setEditingClient(s.client);
+                      setIsModalOpen(true);
+                    }}
+                    className="p-1.5 text-gray-500 hover:text-purple-700 hover:bg-purple-50 rounded-xl transition cursor-pointer"
+                    title="Editar Cliente"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteClient(s.client.id)}
+                    className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                    title="Excluir Cliente"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => handleSelectClient(s)}
+                    className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-[11px] rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Perfil CRM</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -826,7 +847,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
 
             <form onSubmit={handleSaveClient} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">
                   Nome Completo *
                 </label>
                 <input
@@ -835,12 +856,12 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                   placeholder="Ex: Ana Maria Silva"
                   value={editingClient.name || ''}
                   onChange={(e) => setEditingClient({ ...editingClient, name: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">
                   WhatsApp / Telefone *
                 </label>
                 <input
@@ -855,41 +876,41 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       whatsapp: e.target.value,
                     })
                   }
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">E-mail</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">E-mail</label>
                 <input
                   type="email"
                   placeholder="cliente@email.com"
                   value={editingClient.email || ''}
                   onChange={(e) => setEditingClient({ ...editingClient, email: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">
                   Data de Nascimento
                 </label>
                 <input
                   type="date"
                   value={editingClient.birth_date || ''}
                   onChange={(e) => setEditingClient({ ...editingClient, birth_date: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Observações</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Observações</label>
                 <textarea
                   rows={2}
                   placeholder="Anotações gerais do cliente..."
                   value={editingClient.notes || ''}
                   onChange={(e) => setEditingClient({ ...editingClient, notes: e.target.value })}
-                  className="w-full px-3.5 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-600"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
@@ -900,7 +921,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                     setIsModalOpen(false);
                     setEditingClient({});
                   }}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
@@ -1281,7 +1302,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       placeholder="Ex: Liso 1B, Oleoso, Fino"
                       value={editingAnamnese.hair_type || ''}
                       onChange={(e) => setEditingAnamnese({ ...editingAnamnese, hair_type: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600"
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                     />
                   </div>
 
@@ -1294,7 +1315,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       placeholder="Ex: Alergia a amônia, látex, etc."
                       value={editingAnamnese.allergies || ''}
                       onChange={(e) => setEditingAnamnese({ ...editingAnamnese, allergies: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600"
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                     />
                   </div>
 
@@ -1307,7 +1328,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       placeholder="Ex: Descoloração recente, progressiva há 2 meses"
                       value={editingAnamnese.chemical_history || ''}
                       onChange={(e) => setEditingAnamnese({ ...editingAnamnese, chemical_history: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600"
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                     />
                   </div>
 
@@ -1320,7 +1341,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       placeholder="Ex: Café sem açúcar, corte degradê baixo"
                       value={editingAnamnese.preferences || ''}
                       onChange={(e) => setEditingAnamnese({ ...editingAnamnese, preferences: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600"
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                     />
                   </div>
 
@@ -1333,7 +1354,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({ business }) => {
                       placeholder="Outros detalhes relevantes sobre atendimentos anteriores..."
                       value={editingAnamnese.notes || ''}
                       onChange={(e) => setEditingAnamnese({ ...editingAnamnese, notes: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600"
+                      className="w-full px-3 py-2 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-xs outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                     />
                   </div>
                 </div>

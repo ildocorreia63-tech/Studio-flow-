@@ -165,22 +165,23 @@ export const ServicosView: React.FC<ServicosViewProps> = ({ business }) => {
 
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Nome do Serviço *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Nome do Serviço *</label>
                 <input
                   type="text"
                   required
+                  placeholder="Ex: Corte Masculino Premium"
                   value={editingService.name || ''}
                   onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Categoria *</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Categoria *</label>
                 <select
                   value={editingService.category || 'Barbearia'}
                   onChange={(e) => setEditingService({ ...editingService, category: e.target.value as ServiceCategory })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 >
                   {categories.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -190,45 +191,49 @@ export const ServicosView: React.FC<ServicosViewProps> = ({ business }) => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase mb-1">Preço (R$) *</label>
+                  <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Preço (R$) *</label>
                   <input
                     type="number"
                     required
                     step="0.01"
+                    placeholder="0.00"
                     value={editingService.price || ''}
                     onChange={(e) => setEditingService({ ...editingService, price: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-xl text-sm"
+                    className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase mb-1">Duração (Minutos) *</label>
+                  <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Duração (Minutos) *</label>
                   <input
                     type="number"
                     required
+                    placeholder="30"
                     value={editingService.duration_minutes || 30}
                     onChange={(e) => setEditingService({ ...editingService, duration_minutes: Number(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-xl text-sm"
+                    className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Comissão (%)</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Comissão (%)</label>
                 <input
                   type="number"
+                  placeholder="40"
                   value={editingService.commission_rate || 40}
                   onChange={(e) => setEditingService({ ...editingService, commission_rate: Number(e.target.value) })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">Descrição</label>
+                <label className="block text-xs font-bold text-gray-800 uppercase mb-1">Descrição</label>
                 <textarea
                   rows={2}
+                  placeholder="Descrição do serviço..."
                   value={editingService.description || ''}
                   onChange={(e) => setEditingService({ ...editingService, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-xl text-sm"
+                  className="w-full px-3.5 py-2.5 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-purple-600 focus:border-purple-600 focus:bg-white"
                 />
               </div>
 
@@ -236,13 +241,13 @@ export const ServicosView: React.FC<ServicosViewProps> = ({ business }) => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600"
+                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md"
+                  className="px-5 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   Salvar
                 </button>
