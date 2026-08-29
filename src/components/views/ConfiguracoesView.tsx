@@ -6,7 +6,7 @@ import {
   Sun, Moon, Palette, CreditCard, Building2, Lock, Eye, EyeOff, KeyRound, ShieldCheck
 } from 'lucide-react';
 import { DB } from '../../services/db';
-import { Business, ActiveTab, UserProfile } from '../../types';
+import { Business, ActiveTab, UserProfile, BusinessType } from '../../types';
 import { PwaService } from '../../services/pwaService';
 import { getPublicAppBaseUrl } from '../../utils/url';
 
@@ -38,6 +38,7 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
   onNavigate,
 }) => {
   const [name, setName] = useState(business.name);
+  const [type, setType] = useState<BusinessType>(business.type || 'Barbearia + Salão');
   const [phone, setPhone] = useState(business.phone);
   const [whatsapp, setWhatsapp] = useState(business.whatsapp);
   const [address, setAddress] = useState(business.address);
@@ -116,6 +117,7 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
       try {
         const updated = DB.updateBusiness(business.id, {
           name,
+          type,
           phone,
           whatsapp,
           address,
@@ -611,6 +613,25 @@ export const ConfiguracoesView: React.FC<ConfiguracoesViewProps> = ({
                 onChange={(e) => setName(e.target.value)}
                 className="w-full p-2.5 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-purple-500/50 outline-hidden"
               />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase mb-1">Tipo de Estabelecimento *</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as BusinessType)}
+                className="w-full p-2.5 border rounded-xl text-xs bg-white focus:ring-2 focus:ring-purple-500/50 outline-hidden"
+              >
+                <option value="Barbearia">Barbearia</option>
+                <option value="Hamburgueria">Hamburgueria / Lanchonete</option>
+                <option value="Restaurante / Alimentação">Restaurante / Alimentação</option>
+                <option value="Salão">Salão de Beleza</option>
+                <option value="Barbearia + Salão">Barbearia + Salão</option>
+                <option value="Estética">Estética</option>
+                <option value="Manicure">Manicure & Nails</option>
+                <option value="Studio">Studio de Sobrancelhas / Cílios</option>
+                <option value="Outro">Outro Estabelecimento / Autônomo</option>
+              </select>
             </div>
 
             <div>

@@ -498,12 +498,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-purple-600 outline-none"
                   >
                     <option value="Barbearia">Barbearia</option>
+                    <option value="Hamburgueria">Hamburgueria / Lanchonete</option>
+                    <option value="Restaurante / Alimentação">Restaurante / Alimentação</option>
                     <option value="Salão">Salão de Beleza</option>
                     <option value="Barbearia + Salão">Barbearia + Salão</option>
                     <option value="Estética">Estética</option>
                     <option value="Manicure">Manicure & Nails</option>
                     <option value="Studio">Studio de Sobrancelhas / Cílios</option>
-                    <option value="Outro">Outro Profissional Autônomo</option>
+                    <option value="Outro">Outro Estabelecimento / Autônomo</option>
                   </select>
                 </div>
 

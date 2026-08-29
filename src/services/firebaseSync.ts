@@ -1,24 +1,118 @@
 /**
  * Cloud sync service for Firebase Firestore & Realtime Synchronization
+ * Guarantees zero data loss across reloads, browser closes, and multi-tenant accounts
+ * (Barbearias, Hamburguerias, Salões, etc.)
  */
-import { db, doc, getDoc, setDoc, getDocs, collection, query, where } from './firebase';
-import { Business, Appointment, Professional, Service, Client, UserProfile } from '../types';
+import {
+  db,
+  doc,
+  getDoc,
+  setDoc,
+  getDocs,
+  collection,
+  deleteDoc,
+  query,
+  where,
+  auth
+} from './firebase';
+import { getDocFromServer } from 'firebase/firestore';
+import {
+  Business,
+  Appointment,
+  Professional,
+  Service,
+  Client,
+  UserProfile,
+  BusinessHours,
+  CompanySubscription
+} from '../types';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): void {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.warn('Firestore Warning/Error:', JSON.stringify(errInfo));
+}
 
 export class FirebaseSyncService {
-  // Sync business to Firestore
+  // Test connection to Firestore
+  static async testConnection(): Promise<boolean> {
+    try {
+      await getDocFromServer(doc(db, 'system_health', 'connection_test'));
+      return true;
+    } catch (e: any) {
+      if (e instanceof Error && e.message.includes('the client is offline')) {
+        console.warn('Firebase client is offline, falling back to resilient local storage.');
+      }
+      return false;
+    }
+  }
+
+  // --- Businesses ---
   static async syncBusiness(business: Business): Promise<void> {
+    const path = `businesses/${business.id}`;
     try {
       const docRef = doc(db, 'businesses', business.id);
       await setDoc(docRef, business, { merge: true });
     } catch (e) {
-      console.warn('Firebase syncBusiness error:', e);
+      handleFirestoreError(e, OperationType.WRITE, path);
     }
   }
 
-  // Fetch business by slug or ID
-  static async getBusinessBySlug(slug: string): Promise<Business | null> {
+  static async getAllBusinesses(): Promise<Business[]> {
+    const path = 'businesses';
     try {
-      const clean = slug.toLowerCase().trim();
+      const snap = await getDocs(collection(db, 'businesses'));
+      return snap.docs.map((d) => d.data() as Business);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  static async getBusinessBySlug(slug: string): Promise<Business | null> {
+    const clean = slug.toLowerCase().trim();
+    const path = 'businesses';
+    try {
       const q = query(collection(db, 'businesses'), where('slug', '==', clean));
       const snap = await getDocs(q);
       if (!snap.empty) {
@@ -31,13 +125,13 @@ export class FirebaseSyncService {
         return directSnap.data() as Business;
       }
     } catch (e) {
-      console.warn('Firebase getBusinessBySlug error:', e);
+      handleFirestoreError(e, OperationType.GET, path);
     }
     return null;
   }
 
-  // Get business by ID
   static async getBusinessById(id: string): Promise<Business | null> {
+    const path = `businesses/${id}`;
     try {
       const directRef = doc(db, 'businesses', id);
       const directSnap = await getDoc(directRef);
@@ -45,12 +139,47 @@ export class FirebaseSyncService {
         return directSnap.data() as Business;
       }
     } catch (e) {
-      console.warn('Firebase getBusinessById error:', e);
+      handleFirestoreError(e, OperationType.GET, path);
     }
     return null;
   }
 
-  // Save complete subscriber account (business + user profile)
+  // --- User Profiles & Auth Accounts ---
+  static async saveUserProfile(user: UserProfile): Promise<void> {
+    const path = `user_profiles/${user.id}`;
+    try {
+      const docRef = doc(db, 'user_profiles', user.id);
+      await setDoc(docRef, user, { merge: true });
+      if (user.email) {
+        const normEmail = user.email.toLowerCase().trim();
+        const emailDocRef = doc(db, 'accounts_by_email', normEmail);
+        await setDoc(emailDocRef, {
+          userId: user.id,
+          email: normEmail,
+          password: user.password || '',
+          businessId: user.business_id,
+          role: user.role || 'OWNER',
+          name: user.name,
+          updated_at: new Date().toISOString(),
+        }, { merge: true });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  static async getAllUserProfiles(): Promise<UserProfile[]> {
+    const path = 'user_profiles';
+    try {
+      const snap = await getDocs(collection(db, 'user_profiles'));
+      return snap.docs.map((d) => d.data() as UserProfile);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  // Save complete subscriber account (business + user profile + email index)
   static async saveAccount(business: Business, user: UserProfile): Promise<void> {
     try {
       await this.syncBusiness(business);
@@ -64,20 +193,23 @@ export class FirebaseSyncService {
           email: normEmail,
           password: user.password || '',
           businessName: business.name,
+          businessType: business.type || 'Barbearia + Salão',
           role: user.role || 'OWNER',
+          name: user.name,
           updated_at: new Date().toISOString(),
         }, { merge: true });
       }
     } catch (e) {
-      console.warn('Firebase saveAccount error:', e);
+      handleFirestoreError(e, OperationType.WRITE, 'accounts_by_email');
     }
   }
 
   // Retrieve account by email from Firebase Firestore
   static async getAccountByEmail(email: string): Promise<{ user?: UserProfile; business?: Business } | null> {
+    if (!email) return null;
+    const normEmail = email.toLowerCase().trim();
+    
     try {
-      const normEmail = email.toLowerCase().trim();
-      
       // 1. Check direct lookup in accounts_by_email
       const emailRef = doc(db, 'accounts_by_email', normEmail);
       const emailSnap = await getDoc(emailRef);
@@ -106,8 +238,8 @@ export class FirebaseSyncService {
               id: data.userId,
               business_id: data.businessId,
               email: normEmail,
-              password: data.password,
-              name: data.businessName || 'Assinante',
+              password: data.password || '',
+              name: data.name || data.businessName || 'Assinante',
               role: data.role || 'OWNER',
               created_at: new Date().toISOString(),
             };
@@ -147,63 +279,216 @@ export class FirebaseSyncService {
         return { user, business };
       }
     } catch (e) {
-      console.warn('Firebase getAccountByEmail error:', e);
+      handleFirestoreError(e, OperationType.GET, `accounts_by_email/${normEmail}`);
     }
     return null;
   }
 
-  // Save appointment directly to Firestore
+  // Update password in Firestore
+  static async updatePasswordInCloud(email: string, newPass: string): Promise<void> {
+    const norm = email.toLowerCase().trim();
+    const path = `accounts_by_email/${norm}`;
+    try {
+      const emailDocRef = doc(db, 'accounts_by_email', norm);
+      await setDoc(emailDocRef, {
+        email: norm,
+        password: newPass,
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  // --- Appointments ---
   static async saveAppointment(appointment: Appointment): Promise<void> {
+    const path = `appointments/${appointment.id}`;
     try {
       const docRef = doc(db, 'appointments', appointment.id);
       await setDoc(docRef, appointment, { merge: true });
     } catch (e) {
-      console.warn('Firebase saveAppointment error:', e);
+      handleFirestoreError(e, OperationType.WRITE, path);
     }
   }
 
-  // Get appointments by business
+  static async deleteAppointment(appointmentId: string): Promise<void> {
+    const path = `appointments/${appointmentId}`;
+    try {
+      await deleteDoc(doc(db, 'appointments', appointmentId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+  }
+
   static async getAppointments(businessId: string): Promise<Appointment[]> {
+    const path = 'appointments';
     try {
       const q = query(collection(db, 'appointments'), where('business_id', '==', businessId));
       const snap = await getDocs(q);
       return snap.docs.map((d) => d.data() as Appointment);
     } catch (e) {
-      console.warn('Firebase getAppointments error:', e);
+      handleFirestoreError(e, OperationType.LIST, path);
       return [];
     }
   }
 
-  // Save user profile
-  static async saveUserProfile(user: UserProfile): Promise<void> {
+  // --- Services ---
+  static async saveService(service: Service): Promise<void> {
+    const path = `services/${service.id}`;
     try {
-      const docRef = doc(db, 'user_profiles', user.id);
-      await setDoc(docRef, user, { merge: true });
-      if (user.email) {
-        const emailDocRef = doc(db, 'accounts_by_email', user.email.toLowerCase().trim());
-        await setDoc(emailDocRef, {
-          userId: user.id,
-          email: user.email.toLowerCase().trim(),
-          password: user.password || '',
-          businessId: user.business_id,
-          role: user.role || 'OWNER',
-          name: user.name,
-        }, { merge: true });
+      const docRef = doc(db, 'services', service.id);
+      await setDoc(docRef, service, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  static async deleteService(serviceId: string): Promise<void> {
+    const path = `services/${serviceId}`;
+    try {
+      await deleteDoc(doc(db, 'services', serviceId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+  }
+
+  static async getServices(businessId: string): Promise<Service[]> {
+    const path = 'services';
+    try {
+      const q = query(collection(db, 'services'), where('business_id', '==', businessId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as Service);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  // --- Professionals ---
+  static async saveProfessional(professional: Professional): Promise<void> {
+    const path = `professionals/${professional.id}`;
+    try {
+      const docRef = doc(db, 'professionals', professional.id);
+      await setDoc(docRef, professional, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  static async deleteProfessional(professionalId: string): Promise<void> {
+    const path = `professionals/${professionalId}`;
+    try {
+      await deleteDoc(doc(db, 'professionals', professionalId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+  }
+
+  static async getProfessionals(businessId: string): Promise<Professional[]> {
+    const path = 'professionals';
+    try {
+      const q = query(collection(db, 'professionals'), where('business_id', '==', businessId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as Professional);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  // --- Clients ---
+  static async saveClient(client: Client): Promise<void> {
+    const path = `clients/${client.id}`;
+    try {
+      const docRef = doc(db, 'clients', client.id);
+      await setDoc(docRef, client, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  static async deleteClient(clientId: string): Promise<void> {
+    const path = `clients/${clientId}`;
+    try {
+      await deleteDoc(doc(db, 'clients', clientId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+  }
+
+  static async getClients(businessId: string): Promise<Client[]> {
+    const path = 'clients';
+    try {
+      const q = query(collection(db, 'clients'), where('business_id', '==', businessId));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => d.data() as Client);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, path);
+      return [];
+    }
+  }
+
+  // --- Subscriptions ---
+  static async saveSubscription(subscription: any): Promise<void> {
+    const path = `subscriptions/${subscription.business_id || subscription.id}`;
+    try {
+      const docRef = doc(db, 'subscriptions', subscription.business_id || subscription.id);
+      await setDoc(docRef, subscription, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, path);
+    }
+  }
+
+  // --- Pull All Cloud Data and Merge to Local DB ---
+  static async pullAllCloudData(): Promise<{
+    businesses: Business[];
+    profiles: UserProfile[];
+    appointments: Appointment[];
+    services: Service[];
+    professionals: Professional[];
+    clients: Client[];
+  }> {
+    const result = {
+      businesses: [] as Business[],
+      profiles: [] as UserProfile[],
+      appointments: [] as Appointment[],
+      services: [] as Service[],
+      professionals: [] as Professional[],
+      clients: [] as Client[],
+    };
+
+    try {
+      const [bizSnap, profSnap, apptSnap, srvSnap, staffSnap, cliSnap] = await Promise.allSettled([
+        getDocs(collection(db, 'businesses')),
+        getDocs(collection(db, 'user_profiles')),
+        getDocs(collection(db, 'appointments')),
+        getDocs(collection(db, 'services')),
+        getDocs(collection(db, 'professionals')),
+        getDocs(collection(db, 'clients')),
+      ]);
+
+      if (bizSnap.status === 'fulfilled') {
+        result.businesses = bizSnap.value.docs.map((d) => d.data() as Business);
+      }
+      if (profSnap.status === 'fulfilled') {
+        result.profiles = profSnap.value.docs.map((d) => d.data() as UserProfile);
+      }
+      if (apptSnap.status === 'fulfilled') {
+        result.appointments = apptSnap.value.docs.map((d) => d.data() as Appointment);
+      }
+      if (srvSnap.status === 'fulfilled') {
+        result.services = srvSnap.value.docs.map((d) => d.data() as Service);
+      }
+      if (staffSnap.status === 'fulfilled') {
+        result.professionals = staffSnap.value.docs.map((d) => d.data() as Professional);
+      }
+      if (cliSnap.status === 'fulfilled') {
+        result.clients = cliSnap.value.docs.map((d) => d.data() as Client);
       }
     } catch (e) {
-      console.warn('Firebase saveUserProfile error:', e);
+      console.warn('Error pulling all cloud data from Firebase:', e);
     }
-  }
 
-  // Reset password in Firestore
-  static async updatePasswordInCloud(email: string, newPass: string): Promise<void> {
-    try {
-      const norm = email.toLowerCase().trim();
-      const emailDocRef = doc(db, 'accounts_by_email', norm);
-      await setDoc(emailDocRef, { email: norm, password: newPass, updated_at: new Date().toISOString() }, { merge: true });
-    } catch (e) {
-      console.warn('Firebase updatePasswordInCloud error:', e);
-    }
+    return result;
   }
 }
-

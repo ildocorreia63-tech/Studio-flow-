@@ -6,6 +6,8 @@ export type UserRole = 'SUPER_ADMIN' | 'OWNER' | 'ADMIN' | 'RECEPTIONIST' | 'PRO
 
 export type BusinessType =
   | 'Barbearia'
+  | 'Hamburgueria'
+  | 'Restaurante / Alimentação'
   | 'Salão'
   | 'Barbearia + Salão'
   | 'Estética'

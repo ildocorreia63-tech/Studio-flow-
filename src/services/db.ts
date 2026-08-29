@@ -385,6 +385,118 @@ export class DB {
 
     // Always keep permanent vault synchronized with latest subscriber data
     DB.syncSubscribersToVault();
+
+    // Trigger background cloud synchronization with Firebase
+    DB.syncWithCloud().catch((e) => console.warn('Background cloud sync warning:', e));
+  }
+
+  // --- Bidirectional Cloud Sync with Firebase Firestore ---
+  static async syncWithCloud(): Promise<void> {
+    try {
+      const cloudData = await FirebaseSyncService.pullAllCloudData();
+      let hasChanges = false;
+
+      // 1. Merge businesses
+      if (cloudData.businesses && cloudData.businesses.length > 0) {
+        const localBiz = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
+        for (const cb of cloudData.businesses) {
+          const idx = localBiz.findIndex(
+            (b) => b.id === cb.id || (cb.email && b.email && b.email.toLowerCase().trim() === cb.email.toLowerCase().trim())
+          );
+          if (idx === -1) {
+            localBiz.push(cb);
+            hasChanges = true;
+          } else {
+            localBiz[idx] = { ...localBiz[idx], ...cb };
+            hasChanges = true;
+          }
+        }
+        if (hasChanges) {
+          saveStorage(STORAGE_KEYS.BUSINESSES, localBiz);
+        }
+      }
+
+      // 2. Merge user profiles
+      if (cloudData.profiles && cloudData.profiles.length > 0) {
+        const localProfiles = loadStorage<UserProfile[]>(STORAGE_KEYS.PROFILES, initialProfiles);
+        let profChanged = false;
+        for (const cp of cloudData.profiles) {
+          const idx = localProfiles.findIndex(
+            (p) => p.id === cp.id || (cp.email && p.email && p.email.toLowerCase().trim() === cp.email.toLowerCase().trim())
+          );
+          if (idx === -1) {
+            localProfiles.push(cp);
+            profChanged = true;
+          } else {
+            localProfiles[idx] = { ...localProfiles[idx], ...cp };
+            profChanged = true;
+          }
+        }
+        if (profChanged) {
+          saveStorage(STORAGE_KEYS.PROFILES, localProfiles);
+        }
+      }
+
+      // 3. Merge services
+      if (cloudData.services && cloudData.services.length > 0) {
+        const localServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, initialServices);
+        let srvChanged = false;
+        for (const cs of cloudData.services) {
+          const idx = localServices.findIndex((s) => s.id === cs.id);
+          if (idx === -1) {
+            localServices.push(cs);
+            srvChanged = true;
+          }
+        }
+        if (srvChanged) saveStorage(STORAGE_KEYS.SERVICES, localServices);
+      }
+
+      // 4. Merge professionals
+      if (cloudData.professionals && cloudData.professionals.length > 0) {
+        const localProfs = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, initialProfessionals);
+        let profsChanged = false;
+        for (const cp of cloudData.professionals) {
+          const idx = localProfs.findIndex((p) => p.id === cp.id);
+          if (idx === -1) {
+            localProfs.push(cp);
+            profsChanged = true;
+          }
+        }
+        if (profsChanged) saveStorage(STORAGE_KEYS.PROFESSIONALS, localProfs);
+      }
+
+      // 5. Merge clients
+      if (cloudData.clients && cloudData.clients.length > 0) {
+        const localClients = loadStorage<Client[]>(STORAGE_KEYS.CLIENTS, initialClients);
+        let cliChanged = false;
+        for (const cc of cloudData.clients) {
+          const idx = localClients.findIndex((c) => c.id === cc.id);
+          if (idx === -1) {
+            localClients.push(cc);
+            cliChanged = true;
+          }
+        }
+        if (cliChanged) saveStorage(STORAGE_KEYS.CLIENTS, localClients);
+      }
+
+      // 6. Merge appointments
+      if (cloudData.appointments && cloudData.appointments.length > 0) {
+        const localAppts = loadStorage<Appointment[]>(STORAGE_KEYS.APPOINTMENTS, initialAppointments);
+        let apptChanged = false;
+        for (const ca of cloudData.appointments) {
+          const idx = localAppts.findIndex((a) => a.id === ca.id);
+          if (idx === -1) {
+            localAppts.push(ca);
+            apptChanged = true;
+          }
+        }
+        if (apptChanged) saveStorage(STORAGE_KEYS.APPOINTMENTS, localAppts);
+      }
+
+      DB.syncSubscribersToVault();
+    } catch (e) {
+      console.warn('DB.syncWithCloud error:', e);
+    }
   }
 
   // --- Reset ONLY Demo Data (Guarantees Subscriber Data is NEVER Deleted) ---

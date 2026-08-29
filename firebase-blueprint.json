@@ -1,0 +1,186 @@
+{
+  "entities": {
+    "Business": {
+      "title": "Business",
+      "description": "Establishment (Barbearia, Hamburgueria, Salão, etc.) registered in the SaaS platform.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique business identifier" },
+        "name": { "type": "string", "description": "Business trade name" },
+        "slug": { "type": "string", "description": "URL slug for public booking" },
+        "type": { "type": "string", "description": "Business category (Barbearia, Hamburgueria, Salão, etc.)" },
+        "owner_name": { "type": "string", "description": "Owner full name" },
+        "email": { "type": "string", "description": "Business contact email" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "whatsapp": { "type": "string", "description": "WhatsApp number" },
+        "address": { "type": "string", "description": "Physical address" },
+        "city": { "type": "string", "description": "City" },
+        "state": { "type": "string", "description": "State" },
+        "zip_code": { "type": "string", "description": "Postal code" },
+        "plan": { "type": "string", "description": "Subscription plan (basic, professional, premium)" },
+        "logo_url": { "type": "string", "description": "Logo URL" },
+        "cancellation_policy": { "type": "string", "description": "Cancellation policy text" },
+        "min_advance_time_hours": { "type": "number", "description": "Minimum advance booking hours" },
+        "slot_duration_minutes": { "type": "number", "description": "Duration slot in minutes" },
+        "created_at": { "type": "string", "description": "Creation ISO timestamp" },
+        "updated_at": { "type": "string", "description": "Update ISO timestamp" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role, credentials, and business association.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "business_id": { "type": "string", "description": "Associated business ID" },
+        "name": { "type": "string", "description": "User name" },
+        "email": { "type": "string", "description": "User email address" },
+        "password": { "type": "string", "description": "Hashed or raw access password" },
+        "role": { "type": "string", "description": "User role (SUPER_ADMIN, OWNER, ADMIN, PROFESSIONAL, RECEPTIONIST)" },
+        "phone": { "type": "string", "description": "User phone number" },
+        "theme_preference": { "type": "string", "description": "UI theme (light or dark)" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "business_id", "email", "name", "role"]
+    },
+    "AccountByEmail": {
+      "title": "AccountByEmail",
+      "description": "Fast lookup index document mapping email to business and user credentials.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "User email" },
+        "userId": { "type": "string", "description": "User profile ID" },
+        "businessId": { "type": "string", "description": "Business ID" },
+        "businessName": { "type": "string", "description": "Business Name" },
+        "password": { "type": "string", "description": "Access password" },
+        "role": { "type": "string", "description": "User role" },
+        "name": { "type": "string", "description": "User name" },
+        "updated_at": { "type": "string", "description": "Last updated timestamp" }
+      },
+      "required": ["email", "userId", "businessId"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Customer appointment booking record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Appointment ID" },
+        "business_id": { "type": "string", "description": "Business ID" },
+        "client_id": { "type": "string", "description": "Client ID" },
+        "client_name": { "type": "string", "description": "Client Name" },
+        "client_phone": { "type": "string", "description": "Client Phone" },
+        "professional_id": { "type": "string", "description": "Professional ID" },
+        "professional_name": { "type": "string", "description": "Professional Name" },
+        "service_id": { "type": "string", "description": "Service ID" },
+        "service_name": { "type": "string", "description": "Service Name" },
+        "date": { "type": "string", "description": "Booking date YYYY-MM-DD" },
+        "start_time": { "type": "string", "description": "Start time HH:mm" },
+        "end_time": { "type": "string", "description": "End time HH:mm" },
+        "status": { "type": "string", "description": "Status (AGENDADO, CONFIRMADO, EM_ATENDIMENTO, CONCLUÍDO, CANCELADO, NO_SHOW)" },
+        "price": { "type": "number", "description": "Appointment price" },
+        "notes": { "type": "string", "description": "Optional notes" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "business_id", "client_name", "date", "start_time"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Customer record in the business CRM.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Client ID" },
+        "business_id": { "type": "string", "description": "Business ID" },
+        "name": { "type": "string", "description": "Client full name" },
+        "phone": { "type": "string", "description": "Phone number" },
+        "email": { "type": "string", "description": "Email address" },
+        "birth_date": { "type": "string", "description": "Birth date" },
+        "notes": { "type": "string", "description": "Notes" },
+        "created_at": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "business_id", "name", "phone"]
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Service item offered by the establishment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Service ID" },
+        "business_id": { "type": "string", "description": "Business ID" },
+        "name": { "type": "string", "description": "Service Name" },
+        "description": { "type": "string", "description": "Description" },
+        "price": { "type": "number", "description": "Price" },
+        "duration_minutes": { "type": "number", "description": "Duration in minutes" },
+        "commission_rate": { "type": "number", "description": "Commission percentage" },
+        "category": { "type": "string", "description": "Category" },
+        "active": { "type": "boolean", "description": "Is active" }
+      },
+      "required": ["id", "business_id", "name", "price", "duration_minutes"]
+    },
+    "Professional": {
+      "title": "Professional",
+      "description": "Staff member or specialist.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Professional ID" },
+        "business_id": { "type": "string", "description": "Business ID" },
+        "name": { "type": "string", "description": "Staff name" },
+        "specialty": { "type": "string", "description": "Specialty" },
+        "phone": { "type": "string", "description": "Phone" },
+        "whatsapp": { "type": "string", "description": "WhatsApp" },
+        "email": { "type": "string", "description": "Email" },
+        "commission_rate": { "type": "number", "description": "Commission rate" },
+        "status": { "type": "string", "description": "active or inactive" }
+      },
+      "required": ["id", "business_id", "name"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "SaaS plan subscription state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Subscription ID" },
+        "business_id": { "type": "string", "description": "Business ID" },
+        "plan_id": { "type": "string", "description": "Plan ID" },
+        "status": { "type": "string", "description": "Subscription status" },
+        "started_at": { "type": "string", "description": "Start timestamp" },
+        "expires_at": { "type": "string", "description": "Expiration timestamp" }
+      },
+      "required": ["id", "business_id", "plan_id", "status"]
+    }
+  },
+  "firestore": {
+    "/businesses/{businessId}": {
+      "schema": "Business",
+      "description": "Establishment documents"
+    },
+    "/user_profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    },
+    "/accounts_by_email/{email}": {
+      "schema": "AccountByEmail",
+      "description": "Fast account indexing by normalized email"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Appointment bookings"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Client records"
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Service menu items"
+    },
+    "/professionals/{professionalId}": {
+      "schema": "Professional",
+      "description": "Staff members"
+    },
+    "/subscriptions/{subscriptionId}": {
+      "schema": "Subscription",
+      "description": "SaaS subscriptions"
+    }
+  }
+}
