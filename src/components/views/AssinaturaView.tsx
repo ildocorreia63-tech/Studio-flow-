@@ -1297,10 +1297,10 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600 bg-purple-50/50 p-3 rounded-2xl border border-purple-100/80">
                         <div className="flex items-center space-x-2">
                           <Phone className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span className="font-medium truncate">{item.business.phone || 'Sem telefone'}</span>
-                          {item.business.phone && (
+                          <span className="font-medium truncate">{item.business.phone || item.business.whatsapp || 'Sem telefone cadastrado'}</span>
+                          {(item.business.phone || item.business.whatsapp) && (
                             <a
-                              href={`https://wa.me/55${item.business.phone.replace(/\D/g, '')}`}
+                              href={`https://wa.me/55${(item.business.phone || item.business.whatsapp || '').replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noreferrer"
                               className="text-emerald-600 hover:underline font-bold text-[10px] shrink-0"
@@ -1312,7 +1312,7 @@ export const AssinaturaView: React.FC<AssinaturaViewProps> = ({
 
                         <div className="flex items-center space-x-2">
                           <Mail className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span className="font-medium truncate">{item.business.email || 'admin@studioflow.app'}</span>
+                          <span className="font-medium truncate">{item.business.email || 'Sem e-mail cadastrado'}</span>
                         </div>
 
                         <div className="col-span-1 sm:col-span-2 pt-1 border-t border-purple-100 flex items-center justify-between text-[11px]">

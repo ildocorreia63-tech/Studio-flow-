@@ -8,11 +8,13 @@ import {
   UsageStats,
   ActiveTab,
   Business,
+  UserProfile,
 } from '../types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { DB } from './db';
 import { DEMO_BUSINESS_ID } from './seedData';
 import { isPlatformOwner } from '../utils/auth';
+import { FirebaseSyncService } from './firebaseSync';
 
 const STORAGE_KEY_SUBSCRIPTIONS = 'sf_subscriptions';
 
@@ -623,6 +625,16 @@ export class SubscriptionService {
     const businesses = await DB.getBusinessesAsync();
     const results = await Promise.all(
       businesses.map(async (biz) => {
+        // Enforce owner credentials if biz.email or phone is missing
+        const profiles = DB.getProfiles(biz.id);
+        const owner = profiles.find((p) => p.role === 'OWNER') || profiles[0];
+        const enrichedBiz: Business = {
+          ...biz,
+          email: biz.email || owner?.email || '',
+          phone: biz.phone || biz.whatsapp || owner?.phone || '',
+          whatsapp: biz.whatsapp || biz.phone || owner?.phone || '',
+          owner_name: biz.owner_name || owner?.name || '',
+        };
         const subscription = await SubscriptionService.getCurrentSubscriptionAsync(biz.id);
         let usage: UsageStats | undefined;
         try {
@@ -630,7 +642,7 @@ export class SubscriptionService {
         } catch {
           // Fallback if empty
         }
-        return { business: biz, subscription, usage };
+        return { business: enrichedBiz, subscription, usage };
       })
     );
     return results;
@@ -865,6 +877,27 @@ export class SubscriptionService {
       plan: planId,
     });
 
+    // Also synchronize owner profile if email, phone or owner_name was updated
+    if (businessUpdates.email || businessUpdates.phone || businessUpdates.owner_name) {
+      const profiles = DB.getProfiles(businessId);
+      const owner = profiles.find((p) => p.role === 'OWNER') || profiles[0];
+      if (owner) {
+        const oldEmail = owner.email;
+        const newEmail = businessUpdates.email ? businessUpdates.email.trim().toLowerCase() : owner.email;
+        const updatedOwner: UserProfile = {
+          ...owner,
+          email: newEmail,
+          phone: businessUpdates.phone || owner.phone,
+          name: businessUpdates.owner_name || owner.name,
+        };
+        DB.updateProfile(owner.id, updatedOwner);
+        if (oldEmail && oldEmail !== newEmail) {
+          FirebaseSyncService.deleteUserProfile(owner.id, oldEmail).catch(console.warn);
+        }
+        FirebaseSyncService.saveUserProfile(updatedOwner).catch(console.warn);
+      }
+    }
+
     const updatedSub = await SubscriptionService.adminUpdateSubscriptionAsync(
       businessId,
       planId,
@@ -879,6 +912,12 @@ export class SubscriptionService {
    */
   static async adminDeleteBusinessAsync(businessId: string): Promise<boolean> {
     if (!businessId) throw new Error('business_id é obrigatório.');
+
+    try {
+      await FirebaseSyncService.deleteBusiness(businessId);
+    } catch (e) {
+      console.warn('Firebase deleteBusiness error:', e);
+    }
 
     if (isSupabaseConfigured) {
       try {

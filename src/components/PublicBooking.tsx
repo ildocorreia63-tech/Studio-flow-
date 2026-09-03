@@ -60,11 +60,14 @@ export const PublicBooking: React.FC<PublicBookingProps> = ({ businessSlug = 'st
       if (!isMounted) return;
 
       const businesses = DB.getBusinesses();
-      const biz =
-        DB.getBusinessBySlug(businessSlug) ||
-        DB.getBusinessById(businessSlug) ||
-        businesses.find((b) => b.slug?.toLowerCase() === businessSlug?.toLowerCase()) ||
-        businesses[0];
+      let biz = await DB.getBusinessBySlugAsync(businessSlug);
+      if (!biz) {
+        biz =
+          DB.getBusinessBySlug(businessSlug) ||
+          DB.getBusinessById(businessSlug) ||
+          businesses.find((b) => b.slug?.toLowerCase() === businessSlug?.toLowerCase()) ||
+          businesses[0];
+      }
 
       if (biz && isMounted) {
         setBusiness(biz);

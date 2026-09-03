@@ -144,6 +144,27 @@ export class FirebaseSyncService {
     return null;
   }
 
+  static async deleteBusiness(businessId: string): Promise<void> {
+    const path = `businesses/${businessId}`;
+    try {
+      await deleteDoc(doc(db, 'businesses', businessId));
+      await deleteDoc(doc(db, 'subscriptions', businessId));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, path);
+    }
+  }
+
+  static async deleteUserProfile(userId: string, email?: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'user_profiles', userId));
+      if (email) {
+        await deleteDoc(doc(db, 'accounts_by_email', email.toLowerCase().trim()));
+      }
+    } catch (e) {
+      console.warn('Error deleting user profile from Firebase:', e);
+    }
+  }
+
   // --- User Profiles & Auth Accounts ---
   static async saveUserProfile(user: UserProfile): Promise<void> {
     const path = `user_profiles/${user.id}`;

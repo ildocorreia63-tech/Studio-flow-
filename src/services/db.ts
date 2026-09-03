@@ -369,13 +369,23 @@ export class DB {
 
       const storedBusinesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, [initialBusiness]);
       let bizChanged = false;
-      const updatedBiz = storedBusinesses.map(b => {
-        if (b.owner_name === 'Gabriel Santos') {
-          bizChanged = true;
-          return { ...b, owner_name: 'Ildo Correia de Lima' };
-        }
-        return b;
-      });
+      const updatedBiz = storedBusinesses
+        .filter((b) => {
+          // Remove rogue auto-provisioned dummy businesses
+          const isDummy =
+            (b.email && b.email.includes('@studioflow.app') && b.email !== 'admin@studioflow.app' && b.phone === '(11) 98888-7777') ||
+            b.id === 'biz-1788191707904' ||
+            b.id === 'biz-1788042401055';
+          if (isDummy) bizChanged = true;
+          return !isDummy;
+        })
+        .map((b) => {
+          if (b.owner_name === 'Gabriel Santos') {
+            bizChanged = true;
+            return { ...b, owner_name: 'Ildo Correia de Lima' };
+          }
+          return b;
+        });
       if (bizChanged) {
         saveStorage(STORAGE_KEYS.BUSINESSES, updatedBiz);
       }
@@ -646,37 +656,30 @@ export class DB {
       return bSlugNorm === normalizedTarget || bNameNorm === normalizedTarget;
     });
 
-    if (found) return found;
+    return found;
+  }
 
-    // 4. Auto-provision for new requested custom slug (e.g. toty-studio)
-    if (clean && clean !== 'undefined' && clean !== 'null' && clean !== 'false') {
-      const formattedName = clean
-        .split('-')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
+  static async getBusinessBySlugAsync(slug: string): Promise<Business | undefined> {
+    if (!slug) return undefined;
+    const local = DB.getBusinessBySlug(slug);
+    if (local) return local;
 
-      const newBiz = DB.createBusiness({
-        name: formattedName,
-        type: 'Barbearia + Salão',
-        owner_name: formattedName + ' Owner',
-        email: `${clean}@studioflow.app`,
-        phone: '(11) 98888-7777',
-        whatsapp: '11988887777',
-        address: 'Atendimento com Hora Marcada',
-        city: 'São Paulo',
-        state: 'SP',
-        zip_code: '01000-000',
-        slug: clean,
-        logo_url: '',
-        plan: 'professional',
-        cancellation_policy: 'Cancelamentos sem custo com até 2h de antecedência.',
-        min_advance_time_hours: 1,
-        slot_duration_minutes: 30,
-      });
-
-      return newBiz;
+    try {
+      const cloud = await FirebaseSyncService.getBusinessBySlug(slug);
+      if (cloud) {
+        const businesses = DB.getBusinesses();
+        const idx = businesses.findIndex((b) => b.id === cloud.id);
+        if (idx === -1) {
+          businesses.push(cloud);
+        } else {
+          businesses[idx] = { ...businesses[idx], ...cloud };
+        }
+        saveStorage(STORAGE_KEYS.BUSINESSES, businesses);
+        return cloud;
+      }
+    } catch (e) {
+      console.warn('Error fetching business by slug asynchronously:', e);
     }
-
     return undefined;
   }
 
@@ -884,6 +887,7 @@ export class DB {
 
     // Sync to Firebase Cloud
     FirebaseSyncService.syncBusiness(newBiz).catch((e) => console.warn('Firebase sync error:', e));
+    FirebaseSyncService.saveSubscription(newSub).catch((e) => console.warn('Firebase subscription sync error:', e));
 
     return newBiz;
   }
@@ -926,7 +930,40 @@ export class DB {
   }
 
   static async getBusinessesAsync(): Promise<Business[]> {
-    const localBusinesses = DB.getBusinesses();
+    let localBusinesses = DB.getBusinesses();
+
+    // Fetch from Firebase Cloud
+    try {
+      const cloudBusinesses = await FirebaseSyncService.getAllBusinesses();
+      if (cloudBusinesses && cloudBusinesses.length > 0) {
+        let hasNew = false;
+        for (const cb of cloudBusinesses) {
+          const idx = localBusinesses.findIndex((lb) => lb.id === cb.id);
+          if (idx === -1) {
+            localBusinesses.push(cb);
+            hasNew = true;
+          } else {
+            localBusinesses[idx] = {
+              ...localBusinesses[idx],
+              ...cb,
+              email: cb.email || localBusinesses[idx].email,
+              phone: cb.phone || localBusinesses[idx].phone,
+              whatsapp: cb.whatsapp || localBusinesses[idx].whatsapp,
+              owner_name: cb.owner_name || localBusinesses[idx].owner_name,
+              type: cb.type || localBusinesses[idx].type,
+            };
+            hasNew = true;
+          }
+        }
+        if (hasNew) {
+          saveStorage(STORAGE_KEYS.BUSINESSES, localBusinesses);
+          DB.syncSubscribersToVault();
+        }
+      }
+    } catch (e) {
+      console.warn('Error fetching businesses from Firebase in getBusinessesAsync:', e);
+    }
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.from('businesses').select('*');
@@ -971,6 +1008,9 @@ export class DB {
     } else {
       saveStorage(STORAGE_KEYS.BUSINESSES, filteredBusinesses);
     }
+
+    // Delete business and its cloud records from Firebase
+    FirebaseSyncService.deleteBusiness(id).catch((e) => console.warn('Firebase deleteBusiness sync error:', e));
 
     // Cascade delete associated records across all multi-tenant tables
     const filterOutBiz = <T extends { business_id?: string }>(key: string, initialSeed: T[]) => {
@@ -1115,6 +1155,7 @@ export class DB {
         ...updates,
       };
       saveStorage(STORAGE_KEYS.PROFILES, profiles);
+      FirebaseSyncService.saveUserProfile(profiles[idx]).catch((e) => console.warn('Firebase profile update sync error:', e));
       return profiles[idx];
     }
     return null;

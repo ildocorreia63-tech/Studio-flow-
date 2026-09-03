@@ -261,7 +261,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       // Save local subscription entry
       const rawSubs = localStorage.getItem('sf_subscriptions');
       const subsList = rawSubs ? JSON.parse(rawSubs) : [];
-      subsList.push({
+      const subEntry = {
         id: `sub-${createdBiz.id}`,
         business_id: createdBiz.id,
         plan_id: selectedPlan,
@@ -272,7 +272,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         trial_ends_at: trialEnd.toISOString(),
         created_at: now.toISOString(),
         updated_at: now.toISOString(),
-      });
+      };
+      subsList.push(subEntry);
       localStorage.setItem('sf_subscriptions', JSON.stringify(subsList));
 
       const createdOwner = DB.createProfile({
@@ -284,8 +285,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         phone: whatsapp,
       });
 
-      // Save account to Firebase Cloud
+      // Save account and subscription to Firebase Cloud
       FirebaseSyncService.saveAccount(createdBiz, createdOwner).catch((e) => console.warn('Firebase saveAccount error:', e));
+      FirebaseSyncService.saveSubscription(subEntry).catch((e) => console.warn('Firebase saveSubscription error:', e));
 
       // Disparar confirmação e boas-vindas no WhatsApp do Dono
       const bookingUrl = getPublicBookingUrl(createdBiz.slug || slug);

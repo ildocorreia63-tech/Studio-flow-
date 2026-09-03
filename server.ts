@@ -1,4 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import Stripe from 'stripe';
@@ -35,6 +37,7 @@ const PLAN_PRICES: Record<string, { name: string; amountCents: number; descripti
 
 async function startServer() {
   const app = express();
+  const server = http.createServer(app);
   const PORT = 3000;
 
   app.use(express.json());
@@ -318,8 +321,12 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : { server },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -331,7 +338,23 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use.`);
+    } else {
+      console.error('Server encountered error:', err);
+    }
+  });
+
+  const cleanup = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', cleanup);
+  process.on('SIGINT', cleanup);
+
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`StudioFlow Server running on http://0.0.0.0:${PORT}`);
   });
 }
